@@ -1,4 +1,9 @@
 #include<stdio.h>
+// SUN -> 0
+// MON -> 1
+// TUE: 2
+// WEN: 3
+// THU: 4
 
 int main() {
     int ya, yb, ma, mb = 0, d, w, maxDate, k;
@@ -13,7 +18,9 @@ int main() {
             mb = ma + 12;
             yb = ya - 1;
         } else {
+            // mbの初期値?
             mb = ma;
+            yb = ya;
         }
         printf("%d/%d\n", ya, ma);
         printf(" Sun");
@@ -50,7 +57,7 @@ int main() {
         }
 
 //        w = (yb + (yb / 4) - (yb / 100) + (yb / 400) + (13 * (mb + 1) / 5) + 1) % 7;
-        int w = ((yb + (yb / 4) - (yb / 100) + (yb / 400) + (13 * (mb + 1) / 5) + 2)) % 7;
+        int w = ((yb + (yb / 4) - (yb / 100) + (yb / 400) + (13 * (mb + 1) / 5))) % 7;
 
         for (k = 0; k < w; k = k + 1) {
             printf("    ");
