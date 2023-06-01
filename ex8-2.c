@@ -1,6 +1,6 @@
 #include "stdio.h"
 #include "math.h"
-#define LENGTH 3
+#define LENGTH 10
 
 /// Bubble Sort
 
@@ -17,6 +17,35 @@ void bubble(int *id, int *score, int length) {
                 score[j + 1] = tmpScore;
             }
         }
+    }
+}
+
+/// ignoreBeforeIndex: どこのindexまで無視するか. -1で無視しない
+int minIndex(const int *array, int length, int ignoreBeforeIndex) {
+    int resultIndex = ignoreBeforeIndex + 1;
+    int min = array[resultIndex];
+
+    for (int i = resultIndex + 1; i < length; i++) {
+        int value = array[i];
+        if (value < min) {
+            min = array[i];
+            resultIndex = i;
+        }
+    }
+
+    return resultIndex;
+}
+
+void select(int *_id, int *_score, int _length) {
+    // Sort
+    for (int i = 0; i < _length; i++) {
+        int minI = minIndex(_id, _length, i - 1);
+        int tmpId = _id[i];
+        int tmpScore = _score[i];
+        _id[i] = _id[minI];
+        _score[i] = _score[minI];
+        _id[minI] = tmpId;
+        _score[minI] = tmpScore;
     }
 }
 
@@ -56,7 +85,7 @@ int main() {
     sd /= trueLength;
     sd = sqrt(sd);
 
-    bubble(id, score, trueLength);
+    select(id, score, trueLength);
 
     // Output
     printf("-----------------------------\n");
