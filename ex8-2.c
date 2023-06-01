@@ -1,22 +1,22 @@
 #include "stdio.h"
 #include "math.h"
-#define N 3
+#define LENGTH 3
 
 /// Bubble Sort
 
 int main() {
-    int id[N];
-    int score[N];
+    int id[LENGTH];
+    int score[LENGTH];
     float ave = 0, sd = 0;
-    int trueNum = N;
+    int trueLength = LENGTH;
 
     // Input
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < LENGTH; i++) {
         printf("id: ");
         scanf("%d", &id[i]);
 
         if (id[i] == -1) {
-            trueNum = i;
+            trueLength = i;
             break;
         }
 
@@ -25,32 +25,32 @@ int main() {
     }
 
     // 平均
-    for (int i = 0; i < trueNum; i++) {
+    for (int i = 0; i < trueLength; i++) {
         ave += score[i];
     }
 
-    ave /= trueNum;
+    ave /= trueLength;
 
     // 標準偏差
-    for (int i = 0; i < trueNum; i++) {
+    for (int i = 0; i < trueLength; i++) {
         int diff = (float)score[i] - ave;
         sd += diff * diff;
     }
 
-    sd /= trueNum;
+    sd /= trueLength;
     sd = sqrt(sd);
 
     // region Bubble Sort
-    for (int i = 1; i < trueNum; i++) {
-        for (int j = 0; j < trueNum - i; j++) {
-            if (id[i] > id[i + 1]) {
-                int tmpId = id[i];
-                id[i] = id[i + 1];
-                id[i + 1] = tmpId;
+    for (int i = 0; i < trueLength; i++) {
+        for (int j = i; j < trueLength; j++) {
+            if (id[j] > id[j + 1]) {
+                int tmpId = id[j];
+                id[j] = id[j + 1];
+                id[j + 1] = tmpId;
 
-                int tmpScore = score[i];
-                score[i] = score[i + 1];
-                score[i + 1] = tmpScore;
+                int tmpScore = score[j];
+                score[j] = score[j + 1];
+                score[j + 1] = tmpScore;
             }
         }
     }
@@ -59,7 +59,7 @@ int main() {
     // Output
     printf("-----------------------------\n");
 
-    for (int i = 0; i < trueNum; i++) {
+    for (int i = 0; i < trueLength; i++) {
         printf("id: %d, score: %d\n", id[i], score[i]);
     }
 
@@ -73,7 +73,7 @@ int main() {
     printf("search query: ");
     scanf("%d", &searchId);
 
-    for (int i = 0; i < trueNum; i++) {
+    for (int i = 0; i < trueLength; i++) {
         if (id[i] == searchId) {
             searchResult = score[i];
             isFounded = 1;
