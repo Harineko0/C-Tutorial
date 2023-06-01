@@ -4,6 +4,22 @@
 
 /// Bubble Sort
 
+void bubble(int *id, int *score, int length) {
+    for (int i = 0; i < length; i++) {
+        for (int j = 0; j < length - 1; j++) {
+            if (id[j] > id[j + 1]) {
+                int tmpId = id[j];
+                id[j] = id[j + 1];
+                id[j + 1] = tmpId;
+
+                int tmpScore = score[j];
+                score[j] = score[j + 1];
+                score[j + 1] = tmpScore;
+            }
+        }
+    }
+}
+
 int main() {
     int id[LENGTH];
     int score[LENGTH];
@@ -40,21 +56,7 @@ int main() {
     sd /= trueLength;
     sd = sqrt(sd);
 
-    // region Bubble Sort
-    for (int i = 0; i < trueLength; i++) {
-        for (int j = i; j < trueLength; j++) {
-            if (id[j] > id[j + 1]) {
-                int tmpId = id[j];
-                id[j] = id[j + 1];
-                id[j + 1] = tmpId;
-
-                int tmpScore = score[j];
-                score[j] = score[j + 1];
-                score[j + 1] = tmpScore;
-            }
-        }
-    }
-    // endregion
+    bubble(id, score, trueLength);
 
     // Output
     printf("-----------------------------\n");

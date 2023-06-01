@@ -1,17 +1,17 @@
 #include "stdio.h"
 #include "math.h"
-#define N 3
+#define LENGTH 3
 
 
 
 int main() {
-    int id[N];
-    int score[N];
+    int id[LENGTH];
+    int score[LENGTH];
     float ave = 0, sd = 0;
-    int trueNum = N;
+    int trueNum = LENGTH;
 
     // Input
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < LENGTH; i++) {
         printf("id: ");
         scanf("%d", &id[i]);
 
