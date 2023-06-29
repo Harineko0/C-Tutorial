@@ -26,23 +26,6 @@
 3
  */
 
-/// Bubble Sort
-void bubble(int *score, int *id, int length) {
-    for (int i = 0; i < length; i++) {
-        for (int j = 0; j < length - 1; j++) {
-            if (score[j] > score[j + 1]) {
-                int tmpScore = score[j];
-                score[j] = score[j + 1];
-                score[j + 1] = tmpScore;
-
-                int tmpId = id[j];
-                id[j] = id[j + 1];
-                id[j + 1] = tmpId;
-            }
-        }
-    }
-}
-
 /// ignoreBeforeIndex: どこのindexまで無視するか. -1で無視しない
 int minIndex(const int *array, int length, int ignoreBeforeIndex) {
     int resultIndex = ignoreBeforeIndex + 1;
@@ -169,8 +152,6 @@ int main() {
 
     // ソート
     select(score, id, trueLength);
-//    bubble(score, id, trueLength);
-//    quick(score, id, trueLength);
 
     // Output
     printf("-----------------------------\n");

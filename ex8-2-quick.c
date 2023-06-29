@@ -26,53 +26,6 @@
 3
  */
 
-/// Bubble Sort
-void bubble(int *score, int *id, int length) {
-    for (int i = 0; i < length; i++) {
-        for (int j = 0; j < length - 1; j++) {
-            if (score[j] > score[j + 1]) {
-                int tmpScore = score[j];
-                score[j] = score[j + 1];
-                score[j + 1] = tmpScore;
-
-                int tmpId = id[j];
-                id[j] = id[j + 1];
-                id[j + 1] = tmpId;
-            }
-        }
-    }
-}
-
-/// ignoreBeforeIndex: どこのindexまで無視するか. -1で無視しない
-int minIndex(const int *array, int length, int ignoreBeforeIndex) {
-    int resultIndex = ignoreBeforeIndex + 1;
-    int min = array[resultIndex];
-
-    for (int i = resultIndex + 1; i < length; i++) {
-        int value = array[i];
-        if (value < min) {
-            min = array[i];
-            resultIndex = i;
-        }
-    }
-
-    return resultIndex;
-}
-
-/// 選択ソート
-void select(int *score, int *id, int _length) {
-    // Sort
-    for (int i = 0; i < _length; i++) {
-        int minI = minIndex(score, _length, i - 1);
-        int tmpScore = score[i];
-        int tmpId = id[i];
-        score[i] = score[minI];
-        id[i] = id[minI];
-        score[minI] = tmpScore;
-        id[minI] = tmpId;
-    }
-}
-
 /// クイックソート
 void quick(int *score, int *id, int _length) {
     if (_length <= 1) {
@@ -168,9 +121,7 @@ int main() {
     sd = sqrt(sd);
 
     // ソート
-    select(score, id, trueLength);
-//    bubble(score, id, trueLength);
-//    quick(score, id, trueLength);
+    quick(score, id, trueLength);
 
     // Output
     printf("-----------------------------\n");
