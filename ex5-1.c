@@ -133,15 +133,19 @@ void tests() {
 }
 
 int main() {
-    tests();
+//    tests();
 
-    int year, month;
+    int year = 0, month = 0;
 
-    printf("Please enter year: ");
-    scanf("%d", &year);
+    do {
+        printf("Please enter year (greater than 1): ");
+        scanf("%d", &year);
+    } while (year < 1);
 
-    printf("Please enter month: ");
-    scanf("%d", &month);
+    do {
+        printf("Please enter month (1 ~ 12): ");
+        scanf("%d", &month);
+    } while (month > 12 || month < 1);
 
     printf("\n");
 

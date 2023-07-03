@@ -1,6 +1,6 @@
 #include "stdio.h"
 #include "string.h"
-#define N 10 // N目並べ
+#define N 3 // N目並べ
 #define O 0
 #define X 1
 #define E (-1) // empty
@@ -15,32 +15,32 @@ void printTable(int length, int table[length][length]) {
 
         for (int j = 0; j < length; j++) {
 
-            int cell = table[i][j];
+            int cell = table[j][i];
 
             switch (cell) {
                 case O:
-                    printf("O");
+                    printf(" O ");
                     break;
                 case X:
-                    printf("X");
+                    printf(" X ");
                     break;
                 case E:
-                    printf(" ");
+                    printf("   ");
                     break;
                 default:
                     break;
             }
 
             if (j != length - 1) {
-//                printf("|");
+                printf("┃");
             } else {
                 printf("\n");
             }
         }
 
-//        if (i != length - 1) {
-//            printf("-----\n");
-//        }
+        if (i != length - 1) {
+            printf("━━━╋━━━╋━━━\n");
+        }
     }
 }
 

@@ -1,29 +1,39 @@
 #include "stdio.h"
 
 int main() {
-    int num, originalNum;
+    int num = 0, originalNum;
 
-    printf("Please enter a number: ");
-    scanf("%d", &num);
+    do {
+        printf("Please enter a integer greater than 2 less than 2147483647: ");
+        scanf("%d", &num);
+    } while (num < 2 || num > 2147483647);
 
     originalNum = num;
 
     printf("%d = ", num);
 
-    int isFirst = 1;
+    // 出力で * を出力しないか
+    int isNotPrintTimes = 1;
 
     // 2 ~ numの半分まで
-    for (int i = 2; i <= originalNum; i++) {
+    for (int i = 1; i <= originalNum; i = i + 1) {
+        int tmpI = i;
+
+        // 2, 3, 5 で割るために
+        if (i == 1) {
+            tmpI = 2;
+        }
+
         // iで割り切れるとき
-        while (num % i == 0 || num == i) {
-            if (isFirst) {
-                isFirst = 0;
+        while (num % tmpI == 0) {
+            if (isNotPrintTimes) {
+                isNotPrintTimes = 0;
             } else {
                 printf(" * ");
             }
 
-            printf("%d", i);
-            num = num / i;
+            printf("%d", tmpI);
+            num = num / tmpI;
         }
 
         if (num == 1) {
