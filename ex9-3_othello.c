@@ -156,12 +156,13 @@ bool isFinished(ull playerLegal, ull opponentLegal) {
 
 /// @brief オセロの盤面を出力する
 void printBoard(ull player, ull opponent, Color playerColor) {
+    printf("\033[1m");
     printf("   A   B   C   D   E   F   G   H\n");
 
     ull legal = legalBoard(player, opponent);
 
     for (int i = 0; i < 8; i++) {
-        printf("%d ", i + 1);
+        printf("%d \033[42m", i + 1);
 
         for (int j = 0; j < 8; j++) {
 
@@ -182,19 +183,22 @@ void printBoard(ull player, ull opponent, Color playerColor) {
                 printf(" O ");
 
             } else {
-                printf(" @ ");
+                printf("\033[30m @ \033[37m");
             }
 
             if (j < 7) {
                 printf("┃");
+            } else {
+                printf("\033[40m");
             }
         }
 
         if (i < 7) {
-            printf("\n  ━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\n");
+            printf("\n  \033[42m━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\033[40m\n");
         }
     }
     printf("\n");
+    printf("\033[m");
 }
 
 /// @brief Stringの座標を int, int の座標に変換する
@@ -232,7 +236,7 @@ void input(ull player, ull opponent, int* x, int* y) {
         toIntCoordinate(coordinate, &tmpX, &tmpY);
 
         if (tmpX == -1 || tmpY == -1) {
-            printf("Enter in correct format, like C2, F6 or A3.\n");
+            printf("\033[1AHEnter in correct format, like C2, F6 or A3. \n");
 
         } else {
             ull tryToPut = getBit(tmpX, tmpY);
@@ -240,11 +244,11 @@ void input(ull player, ull opponent, int* x, int* y) {
 
             if ((tryToPut & blank) == 0) {
                 // 既に石がある
-                printf("%s is not empty. Enter empty coordinate.\n", coordinate);
+                printf("\033[1A%s is not empty. Enter empty coordinate. \n", coordinate);
 
             } else if (!canPut(player, opponent, tryToPut)) {
                 // 合法手じゃない
-                printf("You can't place to %s. Enter other coordinate.\n", coordinate);
+                printf("\033[1AYou can't place to %s. Enter other coordinate. \n", coordinate);
 
             } else {
                 break;
@@ -265,6 +269,7 @@ void game() {
 
     while (1) {
         printBoard(player, opponent, color);
+
         printf("Current Player: %c\n", color ? 'O' : '@');
 
         // 入力
