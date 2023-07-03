@@ -174,7 +174,7 @@ void printBoard(ull player, ull opponent, Color playerColor) {
 
             if (isEmpty) {
                 if (isLegalStone) {
-                    printf(" + ");
+                    printf("\033[33m + \033[37m");
                 } else {
                     printf("   ");
                 }
