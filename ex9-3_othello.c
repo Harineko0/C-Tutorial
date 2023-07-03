@@ -62,7 +62,7 @@ ull line(ull player, ull opponent, shifter shift, int n) {
     result |= shift(result, n) & opponent;
     result |= shift(result, n) & opponent;
     result |= shift(result, n) & opponent;
-    return shift(result, n);
+    return result; // FIXME: shift(result, n) ??
 }
 
 /// @brief 特定の方向の合法手を返す
@@ -71,18 +71,20 @@ ull line(ull player, ull opponent, shifter shift, int n) {
 /// @param mask シフトするときに無視しないといけない opponent の石を除く. 番兵.
 /// @param shift シフトする数
 ull partialLegal(ull player, ull opponent, ull mask, int shift) {
-    ull legal;
+    ull legal, tmp;
 
     opponent &= mask;
 
     // 左右シフト
-    legal = line(player, opponent, shiftL, shift);
-    legal |= line(player, opponent, shiftR, shift);
+    tmp = line(player, opponent, shiftL, shift);
+    legal = shiftL(tmp, shift);
+    tmp = line(player, opponent, shiftR, shift);
+    legal |= shiftR(tmp, shift);
 
     return legal;
 }
 
-/// @brief プレイヤーの合法手を返す
+/// @brief player の合法手を返す
 /// @param player プレイヤーの盤面
 /// @param opponent 敵の盤面
 ull legalBoard(ull player, ull opponent) {
@@ -140,7 +142,13 @@ ull reversible(ull player, ull opponent, ull put) {
             partialReversible(player, opponent, put, DIAGONAL_MASK, 9);
 }
 
+bool isPass(ull playerLegal, ull opponentLegal) {
+    return playerLegal == 0 && opponentLegal != 0;
+}
 
+bool isFinished(ull playerLegal, ull opponentLegal) {
+    return playerLegal == 0 && opponentLegal == 0;
+}
 
 // endregion
 
@@ -150,24 +158,31 @@ ull reversible(ull player, ull opponent, ull put) {
 void printBoard(ull player, ull opponent, Color playerColor) {
     printf("   A   B   C   D   E   F   G   H\n");
 
+    ull legal = legalBoard(player, opponent);
+
     for (int i = 0; i < 8; i++) {
         printf("%d ", i + 1);
 
         for (int j = 0; j < 8; j++) {
 
             ull thisBit = getBit(j, i);
-            bool playerStone = (player & thisBit) != 0;
-            bool opponentStone = (opponent & thisBit) != 0;
-            bool isEmpty = (playerStone | opponentStone) == 0;
+            bool isPlayerStone = (player & thisBit) != 0;
+            bool isOpponentStone = (opponent & thisBit) != 0;
+            bool isLegalStone = (legal & thisBit) != 0;
+            bool isEmpty = (isPlayerStone | isOpponentStone) == 0;
 
             if (isEmpty) {
-                printf("   ");
+                if (isLegalStone) {
+                    printf(" + ");
+                } else {
+                    printf("   ");
+                }
 
-            } else if ((playerStone && playerColor) || (opponentStone && !playerColor)) {
+            } else if ((isPlayerStone && playerColor) || (isOpponentStone && !playerColor)) {
                 printf(" O ");
 
             } else {
-                printf(" X ");
+                printf(" @ ");
             }
 
             if (j < 7) {
@@ -179,12 +194,13 @@ void printBoard(ull player, ull opponent, Color playerColor) {
             printf("\n  ━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\n");
         }
     }
+    printf("\n");
 }
 
 /// @brief Stringの座標を int, int の座標に変換する
 /// @example (A2) -> (0, 1)
 void toIntCoordinate(char* coordinate, int* x, int* y) {
-    if (strlen(coordinate) != 3) {
+    if (strlen(coordinate) < 2) {
         // エラー
         *x = -1;
         *y = -1;
@@ -204,31 +220,31 @@ void toIntCoordinate(char* coordinate, int* x, int* y) {
     }
 }
 
+/// @brief 座標の入力から, 整数値の座標を返します. 合法手になるまで入力を繰り返します.
 void input(ull player, ull opponent, int* x, int* y) {
-    char coordinate[3] = "";
+    char coordinate[20] = "";
     int tmpX = -1, tmpY = -1;
 
     while (1) {
         printf("Where to place? ⋯ ");
-        scanf(" %s ", coordinate);
+        scanf("%s", coordinate);
 
         toIntCoordinate(coordinate, &tmpX, &tmpY);
 
         if (tmpX == -1 || tmpY == -1) {
-            printf("Enter in correct format, like C2, F6 or A3");
+            printf("Enter in correct format, like C2, F6 or A3.\n");
 
         } else {
-            ull stone = getBit(tmpX, tmpY);
+            ull tryToPut = getBit(tmpX, tmpY);
             ull blank = ~(player | opponent);
-            ull legal = legalBoard(player, opponent);
 
-            if ((stone & blank) == 0) {
+            if ((tryToPut & blank) == 0) {
                 // 既に石がある
-                printf("%s is not empty. Enter empty coordinate.", coordinate);
+                printf("%s is not empty. Enter empty coordinate.\n", coordinate);
 
-            } else if ((stone & legal) == 0) {
+            } else if (!canPut(player, opponent, tryToPut)) {
                 // 合法手じゃない
-                printf("You can't place to %s. Enter other coordinate.", coordinate);
+                printf("You can't place to %s. Enter other coordinate.\n", coordinate);
 
             } else {
                 break;
@@ -242,16 +258,51 @@ void input(ull player, ull opponent, int* x, int* y) {
 
 // endregion
 
-int game() {
+void game() {
     ull player = getBit(3, 3) | getBit(4, 4);
     ull opponent = getBit(3, 4) | getBit(4, 3);
+    Color color = WHITE;
 
-    printBoard(player, opponent, WHITE);
+    while (1) {
+        printBoard(player, opponent, color);
+        printf("Current Player: %c\n", color ? 'O' : '@');
+
+        // 入力
+        int x = -1, y = -1;
+        input(player, opponent, &x, &y);
+
+        // 反転
+        ull put = getBit(x, y);
+        ull reverse = reversible(player, opponent, put);
+        player |= reverse;
+        player |= put;
+        opponent ^= reverse;
+
+        // 終了判定
+        ull playerLegal = legalBoard(player, opponent);
+        ull opponentLegal = legalBoard(opponent, player);
+
+        if (isFinished(playerLegal, opponentLegal)) {
+            break;
+
+            // 反転させて次回のターンのパスを判定
+        } else if (isPass(opponentLegal, playerLegal)) {
+            continue;
+
+        } else {
+            ull tmp = player;
+            player = opponent;
+            opponent = tmp;
+            color = !color;
+            continue;
+        }
+    }
 }
 
 int test();
 
 int main() {
+//    test();
     game();
 }
 
@@ -276,6 +327,10 @@ int test() {
     //    00000000
     //    00000000
     expectULL("legal()", legalBoard(getBit(3, 3) | getBit(4, 4), getBit(3, 4) | getBit(4, 3)), 0x80420100000);
+
+    ull player = getBit(3, 3) | getBit(4, 4);
+    ull opponent = getBit(3, 4) | getBit(4, 3);
+    printf("%llu", partialReversible(player, opponent, getBit(4, 2), VERTICAL_MASK, 8));
 }
 
 // endregion
