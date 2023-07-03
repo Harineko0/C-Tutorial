@@ -3,14 +3,29 @@
 
 #define WHITE 0
 #define BLACK 1
-#define HORIZONTAL 0
-#define VERTICAL 1
-#define RIGHTDIAGONAL 2
-#define LEFTDIAGONAL 3
 
 typedef int Color;
-typedef int DIRECTION;
 typedef unsigned long long ull;
+
+// region Util
+
+typedef ull (*shifter)(ull, int);
+
+/// @brief 左シフトビット演算
+/// @param a シフトする対象
+/// @param n 何bitシフトするか
+ull shiftL(ull a, int n) {
+    return a << n;
+}
+
+/// @brief 右シフトビット演算
+/// @param a シフトする対象
+/// @param n 何bitシフトするか
+ull shiftR(ull a, int n) {
+    return a >> n;
+}
+
+// endregion
 
 // region Calculate
 
@@ -31,63 +46,38 @@ ull getBit(int x, int y) {
     return mask;
 }
 
-/// @brief direction の方向の合法手を返す
-ull legal(ull player, ull opponent, ull blank, DIRECTION direction) {
-    // 左右シフト数
-    int left, right;
+ull line(ull player, ull opponent, shifter shift,  ull n) {
+    ull result = ;
+}
 
-    // 方向によってパラメタ変更
-    switch (direction) {
-        case HORIZONTAL:
-            // 一番左と一番右の列を 0 に置換した opponent.
-            opponent &= 0x7e7e7e7e7e7e7e7e;
-            left = 1;
-            right = 1;
-            break;
-        case VERTICAL:
-            // 一番上と一番下の行を 0 に置換した opponent.
-            opponent &= 0x00FFFFFFFFFFFF00;
-            left = 8;
-            right = 8;
-            break;
-        case RIGHTDIAGONAL:
-            // 右端2列と一番下を 0 に置換した opponent.
-            opponent &= 0x007e7e7e7e7e7e00;
-            left = 7;
-            right = 9;
-            break;
-        case LEFTDIAGONAL:
-            // 右端2列と一番下を 0 に置換した opponent.
-            opponent &= 0x007e7e7e7e7e7e00;
-            left = 9;
-            right = 7;
-            break;
-        default:
-            printf("ERROR: direction got invalid value.");
-            left = 0;
-            right = 0;
-    }
+/// @brief direction の方向の合法手を返す
+/// @param player 自分の盤面
+/// @param opponent 敵の盤面
+/// @param watcher 番兵
+/// @param shift シフトする数
+ull legal(ull player, ull opponent, ull watcher, int shift) {
+    opponent &= watcher;
 
     ull tmp;
     ull legal;
 
-    // 左
-    tmp = player << left & opponent;
-    tmp |= tmp << left & opponent;
-    tmp |= tmp << left & opponent;
-    tmp |= tmp << left & opponent;
-    tmp |= tmp << left & opponent;
-    tmp |= tmp << left & opponent;
-    legal = tmp << left & blank;
+    // 左シフト
+    tmp = player << shift & opponent;
+    tmp |= tmp << shift & opponent;
+    tmp |= tmp << shift & opponent;
+    tmp |= tmp << shift & opponent;
+    tmp |= tmp << shift & opponent;
+    tmp |= tmp << shift & opponent;
+    legal = tmp << shift;
 
-     // 右
-    tmp = player >> right & opponent;
-    tmp |= tmp >> right & opponent;
-    tmp |= tmp >> right & opponent;
-    tmp |= tmp >> right & opponent;
-    tmp |= tmp >> right & opponent;
-    tmp |= tmp >> right & opponent;
-    legal |= tmp >> right & blank;
+     // 右シフト
+    tmp = player >> shift & opponent;
+    tmp |= tmp >> shift & opponent;
+    tmp |= tmp >> shift & opponent;
+    tmp |= tmp >> shift & opponent;
+    tmp |= tmp >> shift & opponent;
+    tmp |= tmp >> shift & opponent;
+    legal |= tmp >> shift;
 
     return legal;
 }
@@ -98,10 +88,13 @@ ull legal(ull player, ull opponent, ull blank, DIRECTION direction) {
 ull legalBoard(ull player, ull opponent) {
     ull blank = ~(player | opponent);
 
-    return legal(player, opponent, blank, HORIZONTAL) |
-            legal(player, opponent, blank, VERTICAL) |
-            legal(player, opponent, blank, RIGHTDIAGONAL) |
-            legal(player, opponent, blank, LEFTDIAGONAL);
+            // 水平
+    return blank & (legal(player, opponent, 0x7e7e7e7e7e7e7e7e, 1) |
+            // 垂直
+            legal(player, opponent, 0x00FFFFFFFFFFFF00, 8) |
+            // 斜め
+            legal(player, opponent, 0x007e7e7e7e7e7e00, 7) |
+            legal(player, opponent, 0x007e7e7e7e7e7e00, 9));
 }
 
 /// @brief その場所に石を置けるか置かないかをboolで返す
