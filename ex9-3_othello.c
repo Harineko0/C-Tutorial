@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include <stdbool.h>
+#include <string.h>
 
 #define WHITE 0
 #define BLACK 1
@@ -139,12 +140,19 @@ ull reversible(ull player, ull opponent, ull put) {
             partialReversible(player, opponent, put, DIAGONAL_MASK, 9);
 }
 
+
+
 // endregion
 
 // region IO
 
+/// @brief オセロの盤面を出力する
 void printBoard(ull player, ull opponent, Color playerColor) {
+    printf("   A   B   C   D   E   F   G   H\n");
+
     for (int i = 0; i < 8; i++) {
+        printf("%d ", i + 1);
+
         for (int j = 0; j < 8; j++) {
 
             ull thisBit = getBit(j, i);
@@ -168,21 +176,83 @@ void printBoard(ull player, ull opponent, Color playerColor) {
         }
 
         if (i < 7) {
-            printf("\n━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\n");
+            printf("\n  ━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\n");
         }
     }
 }
 
+/// @brief Stringの座標を int, int の座標に変換する
+/// @example (A2) -> (0, 1)
+void toIntCoordinate(char* coordinate, int* x, int* y) {
+    if (strlen(coordinate) != 3) {
+        // エラー
+        *x = -1;
+        *y = -1;
+        return;
+    } else {
+        *x = coordinate[0] - 'A';
+        *y = coordinate[1] - '1';
+
+        if (*x < 0 || *x > 7 || *y < 0 || *y > 7) {
+            // エラー
+            *x = -1;
+            *y = -1;
+            return;
+        }
+
+        return;
+    }
+}
+
+void input(ull player, ull opponent, int* x, int* y) {
+    char coordinate[3] = "";
+    int tmpX = -1, tmpY = -1;
+
+    while (1) {
+        printf("Where to place? ⋯ ");
+        scanf(" %s ", coordinate);
+
+        toIntCoordinate(coordinate, &tmpX, &tmpY);
+
+        if (tmpX == -1 || tmpY == -1) {
+            printf("Enter in correct format, like C2, F6 or A3");
+
+        } else {
+            ull stone = getBit(tmpX, tmpY);
+            ull blank = ~(player | opponent);
+            ull legal = legalBoard(player, opponent);
+
+            if ((stone & blank) == 0) {
+                // 既に石がある
+                printf("%s is not empty. Enter empty coordinate.", coordinate);
+
+            } else if ((stone & legal) == 0) {
+                // 合法手じゃない
+                printf("You can't place to %s. Enter other coordinate.", coordinate);
+
+            } else {
+                break;
+            }
+        }
+    }
+
+    *x = tmpX;
+    *y = tmpY;
+}
+
 // endregion
+
+int game() {
+    ull player = getBit(3, 3) | getBit(4, 4);
+    ull opponent = getBit(3, 4) | getBit(4, 3);
+
+    printBoard(player, opponent, WHITE);
+}
 
 int test();
 
 int main() {
-    ull player = 0x1008000000;
-    ull opponent = 0x810000000;
-
-    printBoard(player, opponent, WHITE);
-//    test();
+    game();
 }
 
 // region Test
@@ -205,7 +275,7 @@ int test() {
     //    00010000
     //    00000000
     //    00000000
-    expectULL("legal()", legal(getBit(3, 3) | getBit(4, 4), getBit(3, 4) | getBit(4, 3)), 0x80420100000);
+    expectULL("legal()", legalBoard(getBit(3, 3) | getBit(4, 4), getBit(3, 4) | getBit(4, 3)), 0x80420100000);
 }
 
 // endregion
