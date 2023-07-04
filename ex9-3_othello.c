@@ -256,9 +256,13 @@ int scoreOfHalfRow(int index, uint player, uint opponent) {
 
 /// @brief 0~7 列目, 横 8 マスで行のスコアを返す
 /// @param index 上から何列目か. 0 ~ 7
-/// @param player プレイヤーの8マスの盤面
-/// @param opponent 敵の8マスの盤面
+/// @param player プレイヤーの盤面. 8bit
+/// @param opponent 敵の盤面. 8bit
 int scoreOfRow(int index, uint player, uint opponent) {
+    if (player > 0b11111111 | opponent > 0b11111111) {
+        error("scoreOfRow(), player or opponent is greater than 0b11111111");
+    }
+
     int score = 0;
 
     // index を 0~3 までに抑える
@@ -270,6 +274,24 @@ int scoreOfRow(int index, uint player, uint opponent) {
     score += scoreOfHalfRow(index, (player & 0b11110000) >> 4, (opponent & 0b11110000) >> 4);
     // 右側. 左右反転するが、reverseBit は32bitまるごと反転するので32-4の28ビットシフトする. また、プレイヤーと敵が逆向きになるのでそれも入れ替える.
     score += scoreOfHalfRow(index, reverseBit(player & 0b00001111) >> 28, reverseBit(opponent & 0b00001111) >> 28);
+
+    return score;
+}
+
+int evaluateScore(ull player, ull opponent) {
+    int score = 0;
+
+    for (int i = 0; i < 8; i++) {
+        int shift = i * 8;
+        /// mask & player のビットのずれを直すため
+        int unshift = (7 - i) * 8;
+        ull mask = 0xFF00000000000000 >> shift;
+        // i 行目の盤面を取得
+        uint playerRow = (mask & player) >> unshift;
+        uint opponentRow = (mask & opponent) >> unshift;
+
+        score += scoreOfRow(i, playerRow, opponentRow);
+    }
 
     return score;
 }
@@ -323,6 +345,8 @@ void printBoard(ull player, ull opponent, Color playerColor) {
     }
     printf("\n");
     printf("\033[m");
+
+    printf("Score: %d\n", evaluateScore(player, opponent));
 }
 
 /// @brief Stringの座標を int, int の座標に変換する
@@ -431,8 +455,8 @@ void game() {
 void test();
 
 int main() {
-    test();
-//    game();
+//    test();
+    game();
 }
 
 // region Test
@@ -456,20 +480,22 @@ void expectInt(char* testName, int input, int expect) {
 }
 
 void test() {
+    ull player = getBit(3, 3) | getBit(4, 4);
+    ull opponent = getBit(3, 4) | getBit(4, 3);
+
     expectULL( "getBit(4, 4)", getBit(4, 4), 0x8000000);
     expectULL("legal()", legalBoard(getBit(3, 3) | getBit(4, 4), getBit(3, 4) | getBit(4, 3)), 0x80420100000);
 
-//    ull player = getBit(3, 3) | getBit(4, 4);
-//    ull opponent = getBit(3, 4) | getBit(4, 3);
 //    printf("%llu", partialReversible(player, opponent, getBit(4, 2), VERTICAL_MASK, 8));
     expectInt("countBit(0)", countBit(0), 0);
     expectInt("countBit(1)", countBit(1), 1);
     expectInt("countBit(2)", countBit(1001), 2);
     expectInt("countBit(1010001010001010)", countBit(1010001010001010), 6);
     expectInt("countBit(0xAAAB2149AAAB2149)", countBit(0xAAAB2149AAAB2149), 14);
-
     expectInt("reverseBit()", reverseBit(0b11000101) >> 24, 0b10100011);
+
     expectInt("scoreOfRow()", scoreOfRow(0, 0b11000101, 0b00010010), (30 - 12 + 0 + 30) - (-1 - 12));
+    expectInt("evaluateScore()", evaluateScore(player, opponent), 0);
 }
 
 // endregion
