@@ -10,6 +10,7 @@
 
 typedef int Color;
 typedef unsigned long long ull;
+typedef unsigned int uint;
 typedef ull (*shifter)(ull, int);
 
 // region Util
@@ -28,9 +29,38 @@ ull shiftR(ull a, int n) {
     return a >> n;
 }
 
+/// @brief 立っているビット数をカウントします
+int countBit(ull bits) {
+    bits = (bits & 0x5555555555555555) + (bits >> 1 & 0x5555555555555555);
+    bits = (bits & 0x3333333333333333) + (bits >> 2 & 0x3333333333333333);
+    bits = (bits & 0x0f0f0f0f0f0f0f0f) + (bits >> 4 & 0x0f0f0f0f0f0f0f0f);
+    bits = (bits & 0x00ff00ff00ff00ff) + (bits >> 8 & 0x00ff00ff00ff00ff);
+    bits = (bits & 0x0000ffff0000ffff) + (bits >>16 & 0x0000ffff0000ffff);
+    bits = (bits & 0x00000000ffffffff) + (bits >>32 & 0x00000000ffffffff);
+
+    return bits;
+}
+
+/// @brief ビット列を左右反転する.
+/// @example 11010100 -> 00101011
+uint reverseBit(uint bits) {
+    // 0xAA = 10101010, 0x55 = 01010101
+    bits = ((bits & 0xAAAAAAAA) >> 1) | ((bits & 0x55555555) << 1);
+    bits = ((bits & 0xCCCCCCCC) >> 2) | ((bits & 0x33333333) << 2);
+    bits = ((bits & 0xF0F0F0F0) >> 4) | ((bits & 0x0F0F0F0F) << 4);
+    bits = ((bits & 0xFF00FF00) >> 8) | ((bits & 0x00FF00FF) << 8);
+    bits = ((bits & 0xFFFF0000) >> 16) | ((bits & 0x0000FFFF) << 16);
+
+    return bits;
+}
+
+void error(char* message) {
+    printf("\033[31mError: %s\033[37m\n", message);
+}
+
 // endregion
 
-// region Calculate
+// region Core
 
 /// @brief 与えられた座標のビットのみが立ったビット列を返す
 /// @param x 横座標.
@@ -152,6 +182,100 @@ bool isFinished(ull playerLegal, ull opponentLegal) {
 
 // endregion
 
+// region AI
+
+// 評価関数
+/// @brief あるマスのスコアを返す
+int scoreOfSlot(int x, int y) {
+    static int slotScoreMap[8][8] = {
+            { 30, -12,  0, -1, -1,  0, -12,  30},
+            {-12, -15, -3, -3, -3, -3, -15, -12},
+            {  0,  -3,  0, -1, -1,  0,  -3,   0},
+            { -1,  -3, -1, -1, -1, -3,  -3,  -1},
+            { -1,  -3, -1, -1, -1, -3,  -3,  -1},
+            {  0,  -3,  0, -1, -1,  0,  -3,   0},
+            {-12, -15, -3, -3, -3, -3, -15, -12},
+            { 30, -12,  0, -1, -1,  0, -12,  30}
+            };
+
+    if (x < 0 || x > 7 || y < 0 || y > 7) {
+        return 0;
+    } else {
+        return slotScoreMap[x][y];
+    }
+}
+
+/// @brief (index + 1)番目の行の左半分のスコア. 上から４列しか受け付けない.
+/// @param index 上から何行目か (0~3)
+/// @param player プレイヤーの石の盤面 (4bit)
+/// @param opponent 敵の石の盤面 (4bit)
+int scoreOfHalfRow(int index, uint player, uint opponent) {
+    /// 左上4*4マスの石のパターンを、行と石の配置 (player << 4 + opponent) をキーとして保存. 同じマスに石が重複する場合が無駄(e.g. 10001000)
+    static int rowScoreMap[4][0b11111111];
+    /// rowScoreMap を初期化したかどうか
+    static int initialized = 0;
+
+    uint pattern = (player << 4) + opponent;
+
+    if (!initialized) {
+        for (int row = 0; row < 4; row++) {
+            for (int pat = 0; pat < 0b11111111; pat++) {
+                int _player = pat >> 4;
+                int _opponent = pat & 0b00001111;
+                int score = 0;
+
+                for (int i = 0; i < 4; i++) {
+                    int slot = 0b1000 >> i;
+
+                    // slot の場所に _player の石があったらスコアを追加
+                    if (slot & _player) {
+                        score += scoreOfSlot(i, row);
+                    }
+
+                    if (slot & _opponent) {
+                        score -= scoreOfSlot(i, row);
+                    }
+                }
+
+                rowScoreMap[row][pat] = score;
+            }
+        }
+
+        initialized = 1;
+    }
+
+    if (index < 0 || index > 3 || pattern > 0b11111111 - 1) {
+        error("scoreOfHalfRow(), index or pattern is out of range.");
+        return 0;
+
+    } else {
+        return rowScoreMap[index][pattern];
+
+    }
+}
+
+/// @brief 0~7 列目, 横 8 マスで行のスコアを返す
+/// @param index 上から何列目か. 0 ~ 7
+/// @param player プレイヤーの8マスの盤面
+/// @param opponent 敵の8マスの盤面
+int scoreOfRow(int index, uint player, uint opponent) {
+    int score = 0;
+
+    // index を 0~3 までに抑える
+    if (index > 3) {
+        index = 7 - index;
+    }
+
+    // 左側
+    score += scoreOfHalfRow(index, (player & 0b11110000) >> 4, (opponent & 0b11110000) >> 4);
+    // 右側. 左右反転するが、reverseBit は32bitまるごと反転するので32-4の28ビットシフトする. また、プレイヤーと敵が逆向きになるのでそれも入れ替える.
+    score += scoreOfHalfRow(index, reverseBit(player & 0b00001111) >> 28, reverseBit(opponent & 0b00001111) >> 28);
+
+    return score;
+}
+
+// endregion
+
 // region IO
 
 /// @brief オセロの盤面を出力する
@@ -187,14 +311,14 @@ void printBoard(ull player, ull opponent, Color playerColor) {
             }
 
             if (j < 7) {
-                printf("┃");
+                printf("\033[30m┃\033[37m");
             } else {
                 printf("\033[40m");
             }
         }
 
         if (i < 7) {
-            printf("\n  \033[42m━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\033[40m\n");
+            printf("\n  \033[42m\033[30m━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\033[37m\033[40m\n");
         }
     }
     printf("\n");
@@ -236,7 +360,7 @@ void input(ull player, ull opponent, int* x, int* y) {
         toIntCoordinate(coordinate, &tmpX, &tmpY);
 
         if (tmpX == -1 || tmpY == -1) {
-            printf("\033[1AHEnter in correct format, like C2, F6 or A3. \n");
+            printf("\033[1AEnter in correct format, like C2, F6 or A3. \n");
 
         } else {
             ull tryToPut = getBit(tmpX, tmpY);
@@ -304,38 +428,48 @@ void game() {
     }
 }
 
-int test();
+void test();
 
 int main() {
-//    test();
-    game();
+    test();
+//    game();
 }
 
 // region Test
 
 void expectULL(char* testName, ull input, ull expect) {
     if (input == expect) {
-        printf("✓ Test %s passed\n", testName);
+        printf("\033[32m✓\033[37m Test %s passed\n", testName);
     } else {
-        printf("x Test %s failed\n", testName);
-        printf("input: %llu", input);
+        printf("\033[31mx\033[37m Test %s failed\n", testName);
+        printf("input: %llu\n", input);
     }
 }
 
-int test() {
+void expectInt(char* testName, int input, int expect) {
+    if (input == expect) {
+        printf("\033[32m✓\033[37m Test %s passed\n", testName);
+    } else {
+        printf("\033[31mx\033[37m Test %s failed. ", testName);
+        printf("(input: %d)\n", input);
+    }
+}
+
+void test() {
     expectULL( "getBit(4, 4)", getBit(4, 4), 0x8000000);
-    // expect:
-    //    00001000
-    //    00000100
-    //    00100000
-    //    00010000
-    //    00000000
-    //    00000000
     expectULL("legal()", legalBoard(getBit(3, 3) | getBit(4, 4), getBit(3, 4) | getBit(4, 3)), 0x80420100000);
 
-    ull player = getBit(3, 3) | getBit(4, 4);
-    ull opponent = getBit(3, 4) | getBit(4, 3);
-    printf("%llu", partialReversible(player, opponent, getBit(4, 2), VERTICAL_MASK, 8));
+//    ull player = getBit(3, 3) | getBit(4, 4);
+//    ull opponent = getBit(3, 4) | getBit(4, 3);
+//    printf("%llu", partialReversible(player, opponent, getBit(4, 2), VERTICAL_MASK, 8));
+    expectInt("countBit(0)", countBit(0), 0);
+    expectInt("countBit(1)", countBit(1), 1);
+    expectInt("countBit(2)", countBit(1001), 2);
+    expectInt("countBit(1010001010001010)", countBit(1010001010001010), 6);
+    expectInt("countBit(0xAAAB2149AAAB2149)", countBit(0xAAAB2149AAAB2149), 14);
+
+    expectInt("reverseBit()", reverseBit(0b11000101) >> 24, 0b10100011);
+    expectInt("scoreOfRow()", scoreOfRow(0, 0b11000101, 0b00010010), (30 - 12 + 0 + 30) - (-1 - 12));
 }
 
 // endregion
