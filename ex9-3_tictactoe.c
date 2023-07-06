@@ -154,7 +154,7 @@ int main() {
 
         int x = -1, y = -1;
 //        inputCell(currentPlayer, &x, &y);
-        // region input
+        // region inputKey
         while (1) {
 
             printf("Player%d\n", currentPlayer);

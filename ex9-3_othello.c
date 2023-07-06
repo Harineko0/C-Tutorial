@@ -1,17 +1,33 @@
 #include "stdio.h"
+#include "stdlib.h"
 #include <stdbool.h>
 #include <string.h>
+#include <conio.h>
+// sleep
+#include <unistd.h>
 
 #define WHITE 0
 #define BLACK 1
 #define HORIZONTAL_MASK 0x7e7e7e7e7e7e7e7e
 #define VERTICAL_MASK 0x00FFFFFFFFFFFF00
 #define DIAGONAL_MASK 0x007e7e7e7e7e7e00
+#define INFINITY 2147483648
+// getArrowKey()
+#define UP 1
+#define DOWN 2
+#define LEFT 3
+#define RIGHT 4
+#define ENTER 5
+#define INVALID 0
+#define QUIT 6
 
 typedef int Color;
+typedef int Direction;
 typedef unsigned long long ull;
 typedef unsigned int uint;
 typedef ull (*shifter)(ull, int);
+
+const ull ONE_BIT_MASK_MAX = 0x8000000000000000;
 
 // region Util
 
@@ -27,6 +43,16 @@ ull shiftL(ull a, int n) {
 /// @param n 何bitシフトするか
 ull shiftR(ull a, int n) {
     return a >> n;
+}
+
+/// @brief 左から index (>= 0) 番目のビットのみが立ったビットマスクを返す
+ull get1BitMask(int index) {
+    return 0x8000000000000000 >> index;
+}
+
+/// @brief 左から index (>= 0) 番目の8ビットのみが立ったビットマスクを返す
+ull get8BitMask(int index) {
+    return 0xFF00000000000000 >> index;
 }
 
 /// @brief 立っているビット数をカウントします
@@ -54,6 +80,29 @@ uint reverseBit(uint bits) {
     return bits;
 }
 
+/// @brief 入力されたビット列の最初に立っているビットの index (左から数えて) を返します. 入力が 0 の場合, -1 を返します.
+/// @param max ビット列の長さ. (ビット列が 00101100 だった場合、max は 8 となる)
+int getFirstBitIndex(ull bits, int max) {
+    for (int i = 0; i < max; i++) {
+        ull mask = ONE_BIT_MASK_MAX >> i;
+
+        if ((bits & mask) != 0) {
+            return i;
+        }
+
+    }
+
+    return -1;
+}
+
+int max(int a, int b) {
+    if (a > b) {
+        return a;
+    } else {
+        return b;
+    }
+}
+
 void error(char* message) {
     printf("\033[31mError: %s\033[37m\n", message);
 }
@@ -77,6 +126,28 @@ ull getBit(int x, int y) {
     mask >>= y * 8;
 
     return mask;
+}
+
+/// @brief 入力された bit 列を 8*8 と解釈し、そのうえでの座標を x, y に格納します
+void bitToCoord(ull bit, int *x, int *y) {
+    for (int i = 0; i < 8; i++) {
+        int shift = i * 8;
+        ull row = ((0xFF00000000000000 >> shift) & bit);
+        if (row != 0) {
+            int unshift = (7 - i) * 8;
+            row >>= unshift;
+
+            for (int j = 0; j < 8; j++) {
+                if (((0b10000000 >> j) & row) != 0) {
+                    *x = j;
+                    *y = i;
+                    return;
+
+                }
+            }
+
+        }
+    }
 }
 
 /// @brief playerの石の隣にある、連続するopponentの石を求める.
@@ -180,6 +251,17 @@ bool isFinished(ull playerLegal, ull opponentLegal) {
     return playerLegal == 0 && opponentLegal == 0;
 }
 
+/// @brief 盤面に put の石を置き、ひっくり返す.
+/// @param player プレイヤーの盤面で, ひっくり返される.
+/// @param opponent
+/// @param put
+void place(ull* player, ull* opponent, ull put) {
+    ull reverse = reversible(*player, *opponent, put);
+    *player |= reverse;
+    *player |= put;
+    *opponent ^= reverse;
+}
+
 // endregion
 
 // region AI
@@ -278,6 +360,9 @@ int scoreOfRow(int index, uint player, uint opponent) {
     return score;
 }
 
+/// @brief プレイヤーに対する盤面のスコアを計算する
+/// @param player プレイヤーの盤面
+/// @param opponent 敵の盤面
 int evaluateScore(ull player, ull opponent) {
     int score = 0;
 
@@ -296,39 +381,108 @@ int evaluateScore(ull player, ull opponent) {
     return score;
 }
 
+/// @brief nega-max法で盤面のスコアを求める
+int negMaxScore(ull player, ull opponent, int depth, bool passed) {
+    // 葉ノード -> スコアを返す
+    if (depth == 0) {
+        return evaluateScore(player, opponent);
+
+    } else {
+        ull legal = legalBoard(player, opponent);
+        int score = -INFINITY;
+
+        // 合法手について同じ探索
+        for (int i = 0; i < 64; i++) {
+            ull slot = 0x1 << i;
+
+            if (slot & legal) {
+                // slotが合法手ならば
+                ull newPlayer = player;
+                ull newOpponent = opponent;
+                place(&newPlayer, &newOpponent, slot);
+
+                score = max(score, -negMaxScore(newPlayer, newOpponent, depth - 1, false));
+
+            }
+        }
+
+        // パス・終局の処理
+        if (score == -INFINITY) {
+            // 2連パス(終局) -> evaluateScore
+            if (passed) {
+                return evaluateScore(player, opponent);
+            } else {
+                return -negMaxScore(opponent, player, depth - 1, true);
+            }
+        }
+
+        return score;
+    }
+}
+
+/// @brief 最もいい手を返す
+ull searchBest(ull player, ull opponent, int depth) {
+    ull legal = legalBoard(player, opponent), bestStone = 0;
+    int maxScore = -INFINITY, score;
+
+    for (int i = 0; i < 64; i++) {
+        ull slot = 0x8000000000000000 >> i;
+
+        if (slot & legal) {
+            score = -negMaxScore(player, opponent, depth - 1, false);
+
+            if (maxScore < score) {
+                maxScore = score;
+                bestStone = slot;
+
+            }
+        }
+    }
+
+    return bestStone;
+}
+
 // endregion
 
 // region IO
 
 /// @brief オセロの盤面を出力する
-void printBoard(ull player, ull opponent, Color playerColor) {
-    printf("\033[1m");
+void printBoard(ull player, ull opponent, Color playerColor, ull cursor) {
+    printf("\033[16F\033[1m");
     printf("   A   B   C   D   E   F   G   H\n");
 
     ull legal = legalBoard(player, opponent);
 
+    bool isPlayer = !playerColor;
+    ull human = isPlayer ? player : opponent;
+    ull computer = isPlayer ? opponent : player;
+
     for (int i = 0; i < 8; i++) {
         printf("%d \033[42m", i + 1);
 
+        // ボード本体
         for (int j = 0; j < 8; j++) {
 
             ull thisBit = getBit(j, i);
-            bool isPlayerStone = (player & thisBit) != 0;
-            bool isOpponentStone = (opponent & thisBit) != 0;
+            bool isHumanStone = (human & thisBit) != 0;
+            bool isComputerStone = (computer & thisBit) != 0;
             bool isLegalStone = (legal & thisBit) != 0;
-            bool isEmpty = (isPlayerStone | isOpponentStone) == 0;
+            bool isEmpty = (isHumanStone | isComputerStone) == 0;
+            bool isCursor = (cursor & thisBit) != 0;
 
             if (isEmpty) {
-                if (isLegalStone) {
+                if (isCursor && isPlayer) {
                     printf("\033[33m + \033[37m");
+                } else if (isLegalStone && isPlayer) {
+                    printf("\033[33m - \033[37m");
                 } else {
                     printf("   ");
                 }
 
-            } else if ((isPlayerStone && playerColor) || (isOpponentStone && !playerColor)) {
+            } else if (isComputerStone) {
                 printf(" O ");
 
-            } else {
+            } else if (isHumanStone) {
                 printf("\033[30m @ \033[37m");
             }
 
@@ -339,14 +493,21 @@ void printBoard(ull player, ull opponent, Color playerColor) {
             }
         }
 
+        // 右側に表示するサブ情報
+        if (i == 0) {
+            printf("   You:      \033[30m@\033[37m - %d", countBit(human));
+
+        } else if (i == 1) {
+            printf("   Computer: O - %d", countBit(computer));
+
+        }
+
         if (i < 7) {
             printf("\n  \033[42m\033[30m━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━\033[37m\033[40m\n");
         }
     }
     printf("\n");
     printf("\033[m");
-
-    printf("Score: %d\n", evaluateScore(player, opponent));
 }
 
 /// @brief Stringの座標を int, int の座標に変換する
@@ -372,13 +533,13 @@ void toIntCoordinate(char* coordinate, int* x, int* y) {
     }
 }
 
-/// @brief 座標の入力から, 整数値の座標を返します. 合法手になるまで入力を繰り返します.
-void input(ull player, ull opponent, int* x, int* y) {
+/// @brief 座標の入力から, ボード上の座標を返します. 合法手になるまで入力を繰り返します.
+void inputKey(ull player, ull opponent, int* x, int* y) {
     char coordinate[20] = "";
     int tmpX = -1, tmpY = -1;
 
     while (1) {
-        printf("Where to place? ⋯ ");
+        printf("\nWhere to place? ⋯ ");
         scanf("%s", coordinate);
 
         toIntCoordinate(coordinate, &tmpX, &tmpY);
@@ -408,6 +569,125 @@ void input(ull player, ull opponent, int* x, int* y) {
     *y = tmpY;
 }
 
+/// @brief 矢印キーの入力を得ます.
+/// @return INVALID(0), UP(1), DOWN(2), LEFT(3), RIGHT(4), ENTER(5)
+Direction getArrowKey() {
+    int firstChar = _getch();
+
+    if (firstChar == 0xe0) {
+        // 矢印キーのとき
+        int secondChar = _getch();
+
+        if (secondChar == 0x48) {
+            return UP;
+        } else if (secondChar == 0x50) {
+            return DOWN;
+        } else if (secondChar == 0x4b) {
+            return LEFT;
+        } else if (secondChar == 0x4d) {
+            return RIGHT;
+        }
+
+    } else if (firstChar == 13) {
+        // エンターキーのとき
+        return ENTER;
+    } else if (firstChar == 'q') {
+        return QUIT;
+    }
+
+    return INVALID;
+}
+
+/// @brief 水平方向でカーソルに最も近い合法手を返します
+ull nearestLegalHorizontal(ull cursor, ull legal) {
+    ull leftCursor = cursor;
+    ull rightCursor = cursor;
+
+    int x, y;
+    bitToCoord(cursor, &x, &y);
+
+    ull legalRow = legal & get8BitMask(y * 8);
+
+    for (int j = 0; j < 7 - x; j++) {
+
+        leftCursor <<= 1;
+        rightCursor >>= 1;
+
+        if (leftCursor & legalRow) {
+            return leftCursor;
+        } else if (rightCursor & legalRow) {
+            return  rightCursor;
+        }
+    }
+    return 0;
+}
+
+/// @brief カーソルの入力から, ボード上の座標を返します.
+void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
+    ull legal = legalBoard(player, opponent);
+    int firstIndex = getFirstBitIndex(legal, 64);
+    ull firstBit = ONE_BIT_MASK_MAX >> firstIndex;
+    ull cursor = firstBit;
+    // 座標選択で使う
+    int tmpX, tmpY;
+    bitToCoord(cursor, &tmpX, &tmpY);
+    Direction direction;
+
+    do {
+        printBoard(player, opponent, playerColor, cursor);
+
+        direction = getArrowKey();
+        ull tmpCursor = cursor;
+
+        if (direction == LEFT || direction == RIGHT) {
+//            printf("tmpX: %d, tmpY: %d, tmpCursor: %llu\n", tmpX, tmpY, tmpCursor);
+            shifter shift = direction == LEFT ? shiftL : shiftR;
+            for (int i = 0; i < max(7 - tmpX, tmpX); i++) {
+                tmpCursor = shift(tmpCursor, 1);
+
+                if ((legal & tmpCursor) != 0) {
+//                    printf("    tmpX: %d, tmpY: %d, tmpCursor: %llu\n", tmpX, tmpY, tmpCursor);
+                    cursor = tmpCursor;
+                    bitToCoord(cursor, &tmpX, &tmpY);
+                    break;
+                } else {
+                    continue;
+                }
+
+            }
+
+
+        } else if (direction == UP || direction == DOWN) {
+            shifter shift = direction == UP ? shiftL : shiftR;
+
+            for (int i = 0; i < max(7 - tmpY, tmpY); i++) {
+                tmpCursor = shift(tmpCursor, 8);
+
+                ull nearestLegal = nearestLegalHorizontal(tmpCursor, legal);
+
+                if (nearestLegal != 0) {
+                    cursor = nearestLegal;
+                    bitToCoord(cursor, &tmpX, &tmpY);
+                    break;
+                } else {
+                    continue;
+                }
+
+            }
+
+        } else if (direction == QUIT) {
+            exit(0);
+        }
+
+    } while (direction != ENTER);
+    // エンター入力するまでループ
+    // 矢印取得
+    // 矢印の方向に石があるか確認
+    // あったら座標を移動
+
+    bitToCoord(cursor, x, y);
+}
+
 // endregion
 
 void game() {
@@ -415,31 +695,55 @@ void game() {
     ull opponent = getBit(3, 4) | getBit(4, 3);
     Color color = WHITE;
 
+    for (int i = 0; i < 16; i++) {
+        printf("\n");
+    }
+
     while (1) {
-        printBoard(player, opponent, color);
+        printBoard(player, opponent, color, 0);
+//        printf("Current Player: %s\n", !color ? "You" : "Computer");
 
-        printf("Current Player: %c\n", color ? 'O' : '@');
+        ull put;
 
-        // 入力
-        int x = -1, y = -1;
-        input(player, opponent, &x, &y);
+        if (color == WHITE) {
+            // Player(Human)
+            int x = -1, y = -1;
+//            inputKey(player, opponent, &x, &y);
+            inputCursor(player, opponent, color, &x, &y);
+            put = getBit(x, y);
+
+        } else {
+            // Computer
+
+            // 1秒スリープ
+            sleep(1);
+            put = searchBest(player, opponent, 10);
+
+            int x = -1, y = -1;
+            bitToCoord(put, &x, &y);
+//            printf("\nComputer placed at %c%c (put: %llu)\n", 'A' + x, '1' + y, put);
+        }
+
 
         // 反転
-        ull put = getBit(x, y);
-        ull reverse = reversible(player, opponent, put);
-        player |= reverse;
-        player |= put;
-        opponent ^= reverse;
+        place(&player, &opponent, put);
 
         // 終了判定
         ull playerLegal = legalBoard(player, opponent);
         ull opponentLegal = legalBoard(opponent, player);
 
         if (isFinished(playerLegal, opponentLegal)) {
+            printBoard(player, opponent, color, 0);
+            printf("\n~~~~~~~ %s WON! ~~~~~~~", (countBit(player) == 0) ^ color ? "COMPUTER" : "YOU" );
             break;
 
             // 反転させて次回のターンのパスを判定
         } else if (isPass(opponentLegal, playerLegal)) {
+            printf("Passed!");
+            ull tmp = player;
+            player = opponent;
+            opponent = tmp;
+            color = !color;
             continue;
 
         } else {
@@ -466,7 +770,7 @@ void expectULL(char* testName, ull input, ull expect) {
         printf("\033[32m✓\033[37m Test %s passed\n", testName);
     } else {
         printf("\033[31mx\033[37m Test %s failed\n", testName);
-        printf("input: %llu\n", input);
+        printf("(input: %llu)\n", input);
     }
 }
 
@@ -482,9 +786,14 @@ void expectInt(char* testName, int input, int expect) {
 void test() {
     ull player = getBit(3, 3) | getBit(4, 4);
     ull opponent = getBit(3, 4) | getBit(4, 3);
+    int x, y;
 
     expectULL( "getBit(4, 4)", getBit(4, 4), 0x8000000);
     expectULL("legal()", legalBoard(getBit(3, 3) | getBit(4, 4), getBit(3, 4) | getBit(4, 3)), 0x80420100000);
+
+    bitToCoord(getBit(3, 4), &x, &y);
+    expectInt("bitToCoord() of x", x, 3);
+    expectInt("bitToCoord() of y", y, 4);
 
 //    printf("%llu", partialReversible(player, opponent, getBit(4, 2), VERTICAL_MASK, 8));
     expectInt("countBit(0)", countBit(0), 0);
@@ -496,6 +805,12 @@ void test() {
 
     expectInt("scoreOfRow()", scoreOfRow(0, 0b11000101, 0b00010010), (30 - 12 + 0 + 30) - (-1 - 12));
     expectInt("evaluateScore()", evaluateScore(player, opponent), 0);
+
+    expectInt("getFirstBitIndex()", getFirstBitIndex(0b00101000, 8), 2);
+    expectInt("getFirstBitIndex()", getFirstBitIndex(0b10101100, 8), 0);
+    expectInt("getFirstBitIndex()", getFirstBitIndex(0b00000001, 8), 7);
+    expectInt("getFirstBitIndex()", getFirstBitIndex(0b00000000, 8), -1);
+
 }
 
 // endregion
