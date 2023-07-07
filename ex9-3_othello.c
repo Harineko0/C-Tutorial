@@ -20,6 +20,8 @@
 #define ENTER 5
 #define INVALID 0
 #define QUIT 6
+// AI
+#define DEPTH 6
 
 typedef int Color;
 typedef int Direction;
@@ -446,9 +448,22 @@ ull searchBest(ull player, ull opponent, int depth) {
 
 // region IO
 
+/// @brief オセロと同じ量改行する
+void printBoardSpacer() {
+    for (int i = 0; i < 16; i++) {
+        printf("\n");
+    }
+}
+
+/// @brief オセロの盤面を置き換えるエスケープを出力する
+void printBoardReplacer() {
+    printf("\033[16F");
+}
+
 /// @brief オセロの盤面を出力する
 void printBoard(ull player, ull opponent, Color playerColor, ull cursor) {
-    printf("\033[16F\033[1m");
+    printBoardReplacer();
+    printf("\033[1m");
     printf("   A   B   C   D   E   F   G   H\n");
 
     ull legal = legalBoard(player, opponent);
@@ -495,6 +510,7 @@ void printBoard(ull player, ull opponent, Color playerColor, ull cursor) {
 
         // 右側に表示するサブ情報
         if (i == 0) {
+            // FIXME: 数値がバグる
             printf("   You:      \033[30m@\033[37m - %d", countBit(human));
 
         } else if (i == 1) {
@@ -508,6 +524,14 @@ void printBoard(ull player, ull opponent, Color playerColor, ull cursor) {
     }
     printf("\n");
     printf("\033[m");
+}
+
+void printWon(ull player, ull opponent, bool playerIsHuman) {
+    int playerStone = countBit(player);
+    int opponentStone = countBit(opponent);
+    bool humanWon = (playerStone > opponentStone) ^ playerIsHuman;
+
+    printf("\n~~~~~~~ %s WON! ~~~~~~~", humanWon ? "YOU" : "COMPUTER" );
 }
 
 /// @brief Stringの座標を int, int の座標に変換する
@@ -608,7 +632,12 @@ ull nearestLegalHorizontal(ull cursor, ull legal) {
 
     ull legalRow = legal & get8BitMask(y * 8);
 
-    for (int j = 0; j < 7 - x; j++) {
+    // 同じ列に合法手があるとき
+    if ((cursor & legalRow) != 0) {
+        return cursor;
+    }
+
+    for (int j = 0; j < max(7 - x, x); j++) {
 
         leftCursor <<= 1;
         rightCursor >>= 1;
@@ -635,18 +664,16 @@ void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
 
     do {
         printBoard(player, opponent, playerColor, cursor);
-
         direction = getArrowKey();
-        ull tmpCursor = cursor;
 
         if (direction == LEFT || direction == RIGHT) {
-//            printf("tmpX: %d, tmpY: %d, tmpCursor: %llu\n", tmpX, tmpY, tmpCursor);
             shifter shift = direction == LEFT ? shiftL : shiftR;
+            ull tmpCursor = cursor;
+
             for (int i = 0; i < max(7 - tmpX, tmpX); i++) {
                 tmpCursor = shift(tmpCursor, 1);
 
                 if ((legal & tmpCursor) != 0) {
-//                    printf("    tmpX: %d, tmpY: %d, tmpCursor: %llu\n", tmpX, tmpY, tmpCursor);
                     cursor = tmpCursor;
                     bitToCoord(cursor, &tmpX, &tmpY);
                     break;
@@ -659,6 +686,7 @@ void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
 
         } else if (direction == UP || direction == DOWN) {
             shifter shift = direction == UP ? shiftL : shiftR;
+            ull tmpCursor = cursor;
 
             for (int i = 0; i < max(7 - tmpY, tmpY); i++) {
                 tmpCursor = shift(tmpCursor, 8);
@@ -695,9 +723,7 @@ void game() {
     ull opponent = getBit(3, 4) | getBit(4, 3);
     Color color = WHITE;
 
-    for (int i = 0; i < 16; i++) {
-        printf("\n");
-    }
+    printBoardSpacer();
 
     while (1) {
         printBoard(player, opponent, color, 0);
@@ -717,7 +743,7 @@ void game() {
 
             // 1秒スリープ
             sleep(1);
-            put = searchBest(player, opponent, 10);
+            put = searchBest(player, opponent, DEPTH);
 
             int x = -1, y = -1;
             bitToCoord(put, &x, &y);
@@ -734,11 +760,12 @@ void game() {
 
         if (isFinished(playerLegal, opponentLegal)) {
             printBoard(player, opponent, color, 0);
-            printf("\n~~~~~~~ %s WON! ~~~~~~~", (countBit(player) == 0) ^ color ? "COMPUTER" : "YOU" );
+            printWon(player, opponent, color == BLACK);
             break;
 
             // 反転させて次回のターンのパスを判定
         } else if (isPass(opponentLegal, playerLegal)) {
+            // FIXME: パスしたときにカーソルバグる
             printf("Passed!");
             ull tmp = player;
             player = opponent;
@@ -769,8 +796,7 @@ void expectULL(char* testName, ull input, ull expect) {
     if (input == expect) {
         printf("\033[32m✓\033[37m Test %s passed\n", testName);
     } else {
-        printf("\033[31mx\033[37m Test %s failed\n", testName);
-        printf("(input: %llu)\n", input);
+        printf("\033[31mx\033[37m Test %s failed (input: %llu)\n", testName, input);
     }
 }
 
@@ -778,8 +804,7 @@ void expectInt(char* testName, int input, int expect) {
     if (input == expect) {
         printf("\033[32m✓\033[37m Test %s passed\n", testName);
     } else {
-        printf("\033[31mx\033[37m Test %s failed. ", testName);
-        printf("(input: %d)\n", input);
+        printf("\033[31mx\033[37m Test %s failed. (input: %d)\n", testName, input);
     }
 }
 
@@ -811,6 +836,12 @@ void test() {
     expectInt("getFirstBitIndex()", getFirstBitIndex(0b00000001, 8), 7);
     expectInt("getFirstBitIndex()", getFirstBitIndex(0b00000000, 8), -1);
 
+    expectULL("nearestLegalHorizontal()", nearestLegalHorizontal(0b00100000, 0b01000110), 0b01000000);
+    expectULL("nearestLegalHorizontal()", nearestLegalHorizontal(0b00100000, 0b00100110), 0b00100000);
+    expectULL("nearestLegalHorizontal()", nearestLegalHorizontal(0b10000000, 0b10100110), 0b10000000);
+    expectULL("nearestLegalHorizontal()", nearestLegalHorizontal(0b10000000, 0b01100110), 0b01000000);
+    expectULL("nearestLegalHorizontal()", nearestLegalHorizontal(0b00000001, 0b00100111), 0b00000001);
+    expectULL("nearestLegalHorizontal()", nearestLegalHorizontal(0b00000001, 0b00100110), 0b00000010);
 }
 
 // endregion
