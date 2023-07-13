@@ -21,7 +21,7 @@
 #define INVALID 0
 #define QUIT 6
 // AI
-#define DEPTH 6
+#define DEPTH 8
 
 typedef int Color;
 typedef int Direction;
@@ -444,6 +444,26 @@ ull searchBest(ull player, ull opponent, int depth) {
     return bestStone;
 }
 
+ull getRandom(ull player, ull opponent) {
+    ull legal = legalBoard(player, opponent);
+    int legalCount = countBit(legal);
+    int randomPlace = rand() % legalCount;
+    int counter = 0;
+
+    for (int i = 0; i < 64; i++) {
+        ull mask = ONE_BIT_MASK_MAX >> i;
+
+        if (mask & legal) {
+            counter++;
+
+            if (counter == randomPlace) {
+                return mask;
+            }
+        }
+    }
+
+    return 0;
+}
 // endregion
 
 // region IO
@@ -511,10 +531,10 @@ void printBoard(ull player, ull opponent, Color playerColor, ull cursor) {
         // 右側に表示するサブ情報
         if (i == 0) {
             // FIXME: 数値がバグる
-            printf("   You:      \033[30m@\033[37m - %d", countBit(human));
+            printf("   You:      \033[30m@\033[37m - %d, human: %llu", countBit(human), human);
 
         } else if (i == 1) {
-            printf("   Computer: O - %d", countBit(computer));
+            printf("   Computer: O - %d, compu: %llu", countBit(computer), computer);
 
         }
 
@@ -651,6 +671,7 @@ ull nearestLegalHorizontal(ull cursor, ull legal) {
     return 0;
 }
 
+// FIXME: カーソルが左上にあるときに動かなくなるバグ
 /// @brief カーソルの入力から, ボード上の座標を返します.
 void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
     ull legal = legalBoard(player, opponent);
@@ -668,9 +689,10 @@ void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
 
         if (direction == LEFT || direction == RIGHT) {
             shifter shift = direction == LEFT ? shiftL : shiftR;
+            int searchDist = direction == LEFT ? tmpX : 7 - tmpX;
             ull tmpCursor = cursor;
 
-            for (int i = 0; i < max(7 - tmpX, tmpX); i++) {
+            for (int i = 0; i < searchDist; i++) {
                 tmpCursor = shift(tmpCursor, 1);
 
                 if ((legal & tmpCursor) != 0) {
@@ -683,12 +705,17 @@ void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
 
             }
 
+            if (searchDist == 0) {
+                cursor = tmpCursor;
+            }
 
         } else if (direction == UP || direction == DOWN) {
             shifter shift = direction == UP ? shiftL : shiftR;
+            int searchDist = direction == UP ? tmpY : 7 - tmpY;
             ull tmpCursor = cursor;
+            /// 探索する量
 
-            for (int i = 0; i < max(7 - tmpY, tmpY); i++) {
+            for (int i = 0; i < searchDist; i++) {
                 tmpCursor = shift(tmpCursor, 8);
 
                 ull nearestLegal = nearestLegalHorizontal(tmpCursor, legal);
@@ -701,6 +728,10 @@ void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
                     continue;
                 }
 
+            }
+
+            if (searchDist == 0) {
+                cursor = tmpCursor;
             }
 
         } else if (direction == QUIT) {
@@ -730,24 +761,25 @@ void game() {
 //        printf("Current Player: %s\n", !color ? "You" : "Computer");
 
         ull put;
+        /// 初期化
+        int x = -1, y = -1;
 
         if (color == WHITE) {
             // Player(Human)
-            int x = -1, y = -1;
 //            inputKey(player, opponent, &x, &y);
-            inputCursor(player, opponent, color, &x, &y);
-            put = getBit(x, y);
+//            inputCursor(player, opponent, color, &x, &y);
+//            put = getBit(x, y);
+
+            sleep(1);
+            put = getRandom(player, opponent);
+            bitToCoord(put, &x, &y);
 
         } else {
             // Computer
-
             // 1秒スリープ
             sleep(1);
             put = searchBest(player, opponent, DEPTH);
-
-            int x = -1, y = -1;
             bitToCoord(put, &x, &y);
-//            printf("\nComputer placed at %c%c (put: %llu)\n", 'A' + x, '1' + y, put);
         }
 
 
@@ -764,7 +796,7 @@ void game() {
             break;
 
             // 反転させて次回のターンのパスを判定
-        } else if (isPass(opponentLegal, playerLegal)) {
+        } else if (isPass(playerLegal, opponentLegal)) {
             // FIXME: パスしたときにカーソルバグる
             printf("Passed!");
             ull tmp = player;
