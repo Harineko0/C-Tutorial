@@ -15,6 +15,7 @@ void xor(hull result, int size, ...);
 void not(hull result, int size, hull input);
 void shiftR(hull h, int size, int amount);
 void shiftL(hull h, int size, int amount);
+int count_bit(hull h, int size);
 bool hull_equals(const hull a, int sizeA, const hull b, int sizeB);
 void printHULL(const hull h, int size);
 

@@ -210,6 +210,30 @@ void shiftL(hull h, int size, int amount) {
     }
 }
 
+/// @brief ull の立っているビット数をカウントする
+int ull_count_bit(ull bits) {
+    bits = (bits & 0x5555555555555555) + (bits >> 1 & 0x5555555555555555);
+    bits = (bits & 0x3333333333333333) + (bits >> 2 & 0x3333333333333333);
+    bits = (bits & 0x0f0f0f0f0f0f0f0f) + (bits >> 4 & 0x0f0f0f0f0f0f0f0f);
+    bits = (bits & 0x00ff00ff00ff00ff) + (bits >> 8 & 0x00ff00ff00ff00ff);
+    bits = (bits & 0x0000ffff0000ffff) + (bits >>16 & 0x0000ffff0000ffff);
+    bits = (bits & 0x00000000ffffffff) + (bits >>32 & 0x00000000ffffffff);
+
+    return bits;
+}
+
+/// @brief hull の立っているビット数をカウントする
+/// @param h
+/// @param size h の配列サイズ
+int count_bit(hull h, int size) {
+    int count = 0;
+
+    for (int i = 0; i < size; ++i) {
+        count += ull_count_bit(h[i]);
+    }
+
+    return count;
+}
 
 /// @brief 入力された hull が等しいかどうかを判定
 /// @param a
