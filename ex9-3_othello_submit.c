@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <conio.h>
-// sleep
 #include <unistd.h>
 
 #define WHITE 0
@@ -21,7 +20,6 @@
 #define ENTER 5
 #define INVALID 0
 #define QUIT 6
-// AI
 /// 手読みの数
 #define DEPTH 3
 
@@ -165,7 +163,7 @@ ull line(ull player, ull opponent, shifter shift, int n) {
     result |= shift(result, n) & opponent;
     result |= shift(result, n) & opponent;
     result |= shift(result, n) & opponent;
-    return result; // FIXME: shift(result, n) ??
+    return result;
 }
 
 /// @brief 特定の方向の合法手を返す
@@ -193,12 +191,12 @@ ull partialLegal(ull player, ull opponent, ull mask, int shift) {
 ull legalBoard(ull player, ull opponent) {
     ull blank = ~(player | opponent);
 
-            // 水平
+    // 水平
     return blank & (partialLegal(player, opponent, HORIZONTAL_MASK, 1) |
-            // 垂直
-            partialLegal(player, opponent, VERTICAL_MASK, 8) |
-            // 斜め
-            partialLegal(player, opponent, DIAGONAL_MASK, 7) |
+                    // 垂直
+                    partialLegal(player, opponent, VERTICAL_MASK, 8) |
+                    // 斜め
+                    partialLegal(player, opponent, DIAGONAL_MASK, 7) |
                     partialLegal(player, opponent, DIAGONAL_MASK, 9));
 }
 
@@ -240,9 +238,9 @@ ull partialReversible(ull player, ull opponent, ull put, ull mask, int shift) {
 /// @param put 置いた石
 ull reversible(ull player, ull opponent, ull put) {
     return partialReversible(player, opponent, put, HORIZONTAL_MASK, 1) |
-            partialReversible(player, opponent, put, VERTICAL_MASK, 8) |
-            partialReversible(player, opponent, put, DIAGONAL_MASK, 7) |
-            partialReversible(player, opponent, put, DIAGONAL_MASK, 9);
+           partialReversible(player, opponent, put, VERTICAL_MASK, 8) |
+           partialReversible(player, opponent, put, DIAGONAL_MASK, 7) |
+           partialReversible(player, opponent, put, DIAGONAL_MASK, 9);
 }
 
 bool isPass(ull playerLegal, ull opponentLegal) {
@@ -280,7 +278,7 @@ int scoreOfSlot(int x, int y) {
             {  0,  -3,  0, -1, -1,  0,  -3,   0},
             {-12, -15, -3, -3, -3, -3, -15, -12},
             { 30, -12,  0, -1, -1,  0, -12,  30}
-            };
+    };
 
     if (x < 0 || x > 7 || y < 0 || y > 7) {
         return 0;
@@ -331,7 +329,6 @@ int scoreOfHalfRow(int index, uint player, uint opponent) {
 
     if (index < 0 || index > 3 || pattern > 0b11111111 - 1) {
         error("scoreOfHalfRow(), index or pattern is out of range.");
-        exit(0);
         return 0;
 
     } else {
@@ -532,7 +529,6 @@ void printBoard(ull player, ull opponent, Color playerColor, ull cursor) {
 
         // 右側に表示するサブ情報
         if (i == 0) {
-            // FIXME: 数値がバグる
             printf("   You:      \033[30m@\033[37m - %d", countBit(human));
 
         } else if (i == 1) {
@@ -677,7 +673,6 @@ ull nearestLegalHorizontal(ull cursor, ull legal) {
     return 0;
 }
 
-// FIXME: カーソルが左上にあるときに動かなくなるバグ
 /// @brief カーソルの入力から, ボード上の座標を返します.
 void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
     ull legal = legalBoard(player, opponent);
@@ -745,10 +740,6 @@ void inputCursor(ull player, ull opponent, Color playerColor, int* x, int* y) {
         }
 
     } while (direction != ENTER);
-    // エンター入力するまでループ
-    // 矢印取得
-    // 矢印の方向に石があるか確認
-    // あったら座標を移動
 
     bitToCoord(cursor, x, y);
 }
@@ -772,11 +763,10 @@ void game() {
 
         if (color == WHITE) {
             // Player(Human)
-            // inputKey(player, opponent, &x, &y); // キーで入力
             inputCursor(player, opponent, color, &x, &y);
             put = getBit(x, y);
 
-            /* ランダムで自動的に配置する
+            /* ランダムで自動的に配置する場合
             sleep(1);
             put = getRandom(player, opponent);
             bitToCoord(put, &x, &y);
@@ -784,7 +774,6 @@ void game() {
 
         } else {
             // Computer
-            // 1秒スリープ
             sleep(1);
             put = searchBest(player, opponent, DEPTH);
             bitToCoord(put, &x, &y);
