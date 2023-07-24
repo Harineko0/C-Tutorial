@@ -19,6 +19,17 @@ ull ull_or(ull a, ull b) {
     return a | b;
 }
 
+/// @brief ull の論理否定
+/// @param b これは使わない
+ull ull_not(ull a) {
+    return ~a;
+}
+
+/// @brief ull の排他的論理和
+ull ull_xor(ull a, ull b) {
+    return a ^ b;
+}
+
 /// @brief 左から index (>= 0) 番目のビットのみが立ったビットマスクを返す
 ull ull_left_1bit_mask(int index) {
     return 0x8000000000000000 >> index;
@@ -132,6 +143,29 @@ void and(hull result, int size, ...) {
     fill(1, result, size);
     calc_multi(result, size, ull_and, va);
     va_end(va);
+}
+
+/// @brief hull の排他的論理和
+/// @param result 結果を格納する hull
+/// @param size hull 配列の大きさ
+/// @param ... hull の可変長配列. 最後に NULL を入れる！
+void xor(hull result, int size, ...) {
+    va_list va;
+    va_start(va, size);
+    // resultを0で初期化 (排他的論理和だから)
+    fill(0, result, size);
+    calc_multi(result, size, ull_xor, va);
+    va_end(va);
+}
+
+/// @brief hull の論理否定
+/// @param result 結果を格納する hull
+/// @param size hull 配列の大きさ
+/// @param input 入力の hull
+void not(hull result, int size, hull input) {
+    for (int i = 0; i < size; i++) {
+        result[i] = ull_not(input[i]);
+    }
 }
 
 /// @brief 右シフト演算

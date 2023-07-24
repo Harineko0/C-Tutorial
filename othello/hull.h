@@ -11,6 +11,8 @@ typedef unsigned long long hull[];
 void fill(int bit, hull result, int size);
 void or(hull result, int size, ...);
 void and(hull result, int size, ...);
+void xor(hull result, int size, ...);
+void not(hull result, int size, hull input);
 void shiftR(hull h, int size, int amount);
 void shiftL(hull h, int size, int amount);
 bool hull_equals(const hull a, int sizeA, const hull b, int sizeB);
