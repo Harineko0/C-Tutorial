@@ -85,6 +85,32 @@ ull ull_rightside_mask(int num) {
 
     return masks[num];
 }
+
+/// @brief ull の立っているビット数をカウントする
+int ull_count_bit(ull bits) {
+    bits = (bits & 0x5555555555555555) + (bits >> 1 & 0x5555555555555555);
+    bits = (bits & 0x3333333333333333) + (bits >> 2 & 0x3333333333333333);
+    bits = (bits & 0x0f0f0f0f0f0f0f0f) + (bits >> 4 & 0x0f0f0f0f0f0f0f0f);
+    bits = (bits & 0x00ff00ff00ff00ff) + (bits >> 8 & 0x00ff00ff00ff00ff);
+    bits = (bits & 0x0000ffff0000ffff) + (bits >>16 & 0x0000ffff0000ffff);
+    bits = (bits & 0x00000000ffffffff) + (bits >>32 & 0x00000000ffffffff);
+
+    return bits;
+}
+
+/// @brief 入力されたビット列の最初に立っているビットの index (左から数えて) を返します. 入力が 0 の場合, -1 を返します.
+int ull_first_bit_index(ull bits) {
+    for (int i = 0; i < 64; i++) {
+        ull mask = ull_left_1bit_mask(0) >> i;
+
+        if ((bits & mask) != 0) {
+            return i;
+        }
+
+    }
+
+    return -1;
+}
 // endregion
 
 /// @brief 全ビット同じ hull を返す.
@@ -210,20 +236,8 @@ void shiftL(hull h, int size, int amount) {
     }
 }
 
-/// @brief ull の立っているビット数をカウントする
-int ull_count_bit(ull bits) {
-    bits = (bits & 0x5555555555555555) + (bits >> 1 & 0x5555555555555555);
-    bits = (bits & 0x3333333333333333) + (bits >> 2 & 0x3333333333333333);
-    bits = (bits & 0x0f0f0f0f0f0f0f0f) + (bits >> 4 & 0x0f0f0f0f0f0f0f0f);
-    bits = (bits & 0x00ff00ff00ff00ff) + (bits >> 8 & 0x00ff00ff00ff00ff);
-    bits = (bits & 0x0000ffff0000ffff) + (bits >>16 & 0x0000ffff0000ffff);
-    bits = (bits & 0x00000000ffffffff) + (bits >>32 & 0x00000000ffffffff);
-
-    return bits;
-}
-
 /// @brief hull の立っているビット数をカウントする
-/// @param h
+/// @param h hull
 /// @param size h の配列サイズ
 int count_bit(hull h, int size) {
     int count = 0;
@@ -233,6 +247,39 @@ int count_bit(hull h, int size) {
     }
 
     return count;
+}
+
+/// @brief 入力されたビット列の最初に立っているビットの左から数えた index を返します. 入力が 0 の場合, -1 を返します.
+/// @param h hull
+/// @param size h の配列サイズ
+int first_bit_index(hull h, int size) {
+    int index = -1;
+
+    for (int i = 0; i < size; i++) {
+        index = ull_first_bit_index(h[i]);
+
+        // ビットが立ってたら
+        if (index != -1) {
+            index += i * 64;
+            break;
+        }
+    }
+
+    return index;
+}
+
+/// @brief 左から index (>= 0) 番目のビットのみが立ったビットマスクを返す
+void left_1bit_mask(hull h, int size, int index) {
+    int hIndex = index / 64;
+    index %= 64;
+
+    for (int i = 0; i < size; i++) {
+        if (i == hIndex) {
+            h[i] = ull_left_1bit_mask(index);
+        } else {
+            h[i] = 0;
+        }
+    }
 }
 
 /// @brief 入力された hull が等しいかどうかを判定

@@ -16,6 +16,8 @@ void not(hull result, int size, hull input);
 void shiftR(hull h, int size, int amount);
 void shiftL(hull h, int size, int amount);
 int count_bit(hull h, int size);
+int first_bit_index(hull h, int size);
+void left_1bit_mask(hull h, int size, int index);
 bool hull_equals(const hull a, int sizeA, const hull b, int sizeB);
 void printHULL(const hull h, int size);
 
