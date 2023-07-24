@@ -1,6 +1,6 @@
 #ifndef _HULL_H_
 #define _HULL_H_
-#include "stdbool.h"
+#include <stdbool.h>
 
 #define ULL_ALL_MASK 0xFFFFFFFFFFFFFFFF
 
@@ -11,7 +11,9 @@ typedef unsigned long long hull[];
 typedef unsigned long long (*hull_p)[];
 
 void fill(int bit, hull result, int size);
-void or(hull result, int size, hull h, ...);
+void or(hull result, int size, ...);
+void and(hull result, int size, ...);
 bool hull_equals(const hull a, int sizeA, const hull b, int sizeB);
+void printHULL(const hull h, int size);
 
 #endif // _HULL_H_

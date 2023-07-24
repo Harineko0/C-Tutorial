@@ -1,5 +1,5 @@
 #include "hull.h"
-#include "stdio.h"
+#include <stdio.h>
 
 void expectULL(char* testName, ull input, ull expect) {
     if (input == expect) {
@@ -14,5 +14,7 @@ void expectHULL(char* testName, hull input, hull expect, int size) {
         printf("o Test %s passed\n", testName);
     } else {
         printf("x Test %s failed\n", testName);
+        printf("    ");
+        printHULL(input, size);
     }
 }
