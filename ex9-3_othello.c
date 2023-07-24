@@ -49,7 +49,7 @@ ull shiftR(ull a, int n) {
 
 /// @brief 左から index (>= 0) 番目のビットのみが立ったビットマスクを返す
 ull get1BitMask(int index) {
-    return 0x8000000000000000 >> index;
+    return 0x80000000000000 >> index;
 }
 
 /// @brief 左から index (>= 0) 番目の8ビットのみが立ったビットマスクを返す

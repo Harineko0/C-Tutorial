@@ -5,6 +5,76 @@
 #include "hull.h"
 
 typedef ull (*calc_func)(ull, ull);
+/// @brief hull のポインタ
+typedef unsigned long long (*hull_p)[];
+
+// region ull
+/// @brief ull の論理積
+ull ull_and(ull a, ull b) {
+    return a & b;
+}
+
+/// @brief ull の論理和
+ull ull_or(ull a, ull b) {
+    return a | b;
+}
+
+/// @brief 左から index (>= 0) 番目のビットのみが立ったビットマスクを返す
+ull ull_left_1bit_mask(int index) {
+    return 0x8000000000000000 >> index;
+}
+
+/// @brief から index (>= 0) 番目のビットのみが立ったビットマスクを返す
+ull ull_right_1bit_mask(int index) {
+    return 1 << index;
+}
+
+/// @brief 左から num 番目までのビットが立っているマスクを返す
+ull ull_leftside_mask(int num) {
+    // キャッシュ
+    static ull masks[64];
+    static bool initialized = false;
+
+    // 初期化
+    if (!initialized) {
+        for (int i = 0; i < 64; i++) {
+            ull mask = 0;
+
+            for (int j = 0; j < i; j++) {
+                mask |= ull_left_1bit_mask(j);
+            }
+
+            masks[i] = mask;
+        }
+        initialized = true;
+    }
+
+    return masks[num];
+}
+
+/// @brief 右から num 番目までのビットが立っているマスクを返す
+ull ull_rightside_mask(int num) {
+    // キャッシュ
+    static ull masks[64];
+    static bool initialized = false;
+
+    // 初期化
+    if (!initialized) {
+        for (int i = 0; i < 64; i++) {
+            ull mask = 0;
+
+            for (int j = 0; j < i; j++) {
+                mask |= ull_right_1bit_mask(j);
+            }
+
+            masks[i] = mask;
+        }
+        initialized = true;
+    }
+
+    return masks[num];
+}
+// endregion
 
 /// @brief 全ビット同じ hull を返す.
 /// @param bit 0 か 1
@@ -16,16 +86,6 @@ void fill(int bit, hull result, int size) {
     for (int i = 0; i < size; i++) {
         result[i] = mask;
     }
-}
-
-/// @brief ull の論理積
-ull ull_and(ull a, ull b) {
-    return a & b;
-}
-
-/// @brief ull の論理和
-ull ull_or(ull a, ull b) {
-    return a | b;
 }
 
 /// @brief 複数の hull の演算を行う
@@ -74,6 +134,49 @@ void and(hull result, int size, ...) {
     va_end(va);
 }
 
+/// @brief 右シフト演算
+/// @param h hull
+/// @param size hull の size
+/// @param amount シフトする量
+void shiftR(hull h, int size, int amount) {
+    ull mask = ull_rightside_mask(amount);
+
+    // 配列の一番右の要素からシフト
+    for (int i = size - 1; i >= 0; i--) {
+        h[i] >>= amount;
+
+        // 仮想的に次の要素からもシフトさせる. i=0 のときはやらない(一番左だから次の要素がない)
+        if (i > 0) {
+            ull next = h[i - 1];
+            next &= mask;
+            next <<= 64 - amount;
+            h[i] |= next;
+        }
+    }
+}
+
+/// @brief 右シフト演算
+/// @param h hull
+/// @param size hull の size
+/// @param amount シフトする量
+void shiftL(hull h, int size, int amount) {
+    ull mask = ull_leftside_mask(amount);
+
+    // 配列の一番右の要素からシフト
+    for (int i = 0; i < size; i++) {
+        h[i] <<= amount;
+
+        // 仮想的に次の要素からもシフトさせる.
+        if (i + 1 < size) {
+            ull next = h[i + 1];
+            next &= mask;
+            next >>= 64 - amount;
+            h[i] |= next;
+        }
+    }
+}
+
+
 /// @brief 入力された hull が等しいかどうかを判定
 /// @param a
 /// @param sizeA aの配列サイズ
@@ -90,7 +193,7 @@ bool hull_equals(const hull a, int sizeA, const hull b, int sizeB) {
 /// @brief hull を出力する
 void printHULL(const hull h, int size) {
     for (int i = 0; i < size; ++i) {
-        printf("%llu", h[i]);
+        printf("%llu ", h[i]);
     }
     printf("\n");
 }
