@@ -282,6 +282,17 @@ void left_1bit_mask(hull h, int size, int index) {
     }
 }
 
+/// @brief 左から num 番目までのビットが立っている hull マスクを返す
+void left_side_mask(hull h, int size, int num) {
+    for (int i = 0; i < size; i++) {
+        if (num > 64) {
+            h[i] = ULL_ALL_MASK;
+        } else {
+            ull_leftside_mask(num);
+        }
+    }
+}
+
 /// @brief 入力された hull が等しいかどうかを判定
 /// @param a
 /// @param sizeA aの配列サイズ
