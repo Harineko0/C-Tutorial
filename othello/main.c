@@ -1,55 +1,346 @@
-#include "test.h"
-#include "hull.h"
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
+#include <conio.h>
+#include "util.h"
 
-int test();
+// Board Element
+#define EMPTY 0
+#define FIRST 1 // 先手
+#define SECOND 2 // 後手
+#define LEGAL 3
+#define CURSOR 4
+#define OUTSIDE -1
+// ASNI Color Code
+#define CH_BLACK 30
+#define CH_YELLOW 33
+#define CH_WHITE 37
+#define BK_BLACK 40
+#define BK_GREEN 42
+// Board Divider
+#define BETWEEN 0
+#define TOP 1
+#define BOTTOM 2
+// input_arrow
+#define UP 1
+#define DOWN 2
+#define LEFT 3
+#define RIGHT 4
+#define ENTER 5
+#define INVALID 0
+#define QUIT 6
 
-int main() {
-    test();
+struct vector {
+    int x;
+    int y;
+};
+/// UP, DOWN, LEFT, RIGHT, ENTER, INVALID, QUIT
+typedef int direction;
+
+// region IO
+/// @brief 出力のカーソルを上に line 行だけずらす
+void print_overwrite(int line) {
+    printf("\033[%dF", line);
 }
 
-int test() {
-    int size = 3;
+/// @brief ANSIのカラーコードを出力する
+void print_color(int color_code) {
+    printf("\033[%dm", color_code);
+}
 
-    ull hull_fill_0[size],
-        hull_fill_0_exp[] = {0, 0, 0},
-        hull_fill_1[size],
-        hull_fill_1_exp[] = {ULL_ALL_MASK, ULL_ALL_MASK, ULL_ALL_MASK};
-    fill(0, hull_fill_0, size);
-    fill(1, hull_fill_1, size);
-    expectHULL("fill_0", hull_fill_0, hull_fill_0_exp, size);
-    expectHULL("fill_1", hull_fill_1, hull_fill_1_exp, size);
+/// @brief 盤面のサイズを入力
+/// @return 正の偶数
+int input_size() {
+    int size = 0;
+    bool first_loop = true;
 
-    ull hull_and_0[size],
-        hull_or_0[size],
-        hull_xor_0[size],
-        hull_or_0_0[]    = {0b10010101, 0b01000001, 0b10010100},
-        hull_or_0_1[]    = {0b01010001, 0b01000000, 0b01100110},
-        hull_or_0_exp[]  = {0b11010101, 0b01000001, 0b11110110},
-        hull_and_0_0[]   = {0b10010101, 0b01000001, 0b10010100},
-        hull_and_0_1[]   = {0b01010001, 0b01000000, 0b01100110},
-        hull_and_0_exp[] = {0b00010001, 0b01000000, 0b00000100},
-        hull_xor_0_0[]   = {0b10010101, 0b01000001, 0b10010100},
-        hull_xor_0_1[]   = {0b01010001, 0b01000000, 0b01100110},
-        hull_xor_0_exp[] = {0b11000100, 0b00000001, 0b11110010},
-        hull_not_0[]     = {0b01010001, 0b01000000, 0b01100110},
-        hull_not_0_exp[] = {0b1111111111111111111111111111111111111111111111111111111110101110, 0b1111111111111111111111111111111111111111111111111111111110111111, 0b1111111111111111111111111111111111111111111111111111111110011001};
-    or(hull_or_0, size, hull_or_0_0, hull_or_0_1, NULL);
-    and(hull_and_0, size, hull_and_0_0, hull_and_0_1, NULL);
-    xor(hull_xor_0, size, hull_xor_0_0, hull_xor_0_1, NULL);
-    not(hull_not_0, size, hull_not_0);
-    expectHULL("or_0", hull_or_0, hull_or_0_exp, size);
-    expectHULL("and_0", hull_and_0, hull_and_0_exp, size);
-    expectHULL("xor_0", hull_xor_0, hull_xor_0_exp, size);
-    expectHULL("not_0", hull_not_0, hull_not_0_exp, size);
+    do {
+        if (!first_loop) {
+            print_overwrite(1);
+            printf("%d is not valid size.\n", size);
+        }
 
-    ull hull_shiftR_0[]     = {0b10010101, 0b01000001, 0b10010100},
-        hull_shiftR_0_exp[] = {0b00001001, 0x5000000000000004, 0x1000000000000009},
-        hull_shiftL_0[]     = {0b10010101, 0b0101000000000000000000000000000000000000000000000000000000000100, 0b1001010000000000000000000000000000000000000000000000000000000010},
-        hull_shiftL_0_exp[] = {0b100101010101, 0b0000000000000000000000000000000000000000000000000000000001001001, 0b0100000000000000000000000000000000000000000000000000000000100000};
-    shiftR(hull_shiftR_0, size, 4);
-    shiftL(hull_shiftL_0, size, 4);
-    expectHULL("shiftR_0", hull_shiftR_0, hull_shiftR_0_exp, size);
-    expectHULL("shiftL_0", hull_shiftL_0, hull_shiftL_0_exp, size);
+        printf("Enter board size, which should be positive even number: ");
+        scanf("%d", &size);
+        printf("\n");
+        first_loop = false;
 
+    } while (size <= 0 || size % 2 != 0);
+
+    printf("\n");
+
+    return size;
+}
+
+/// @brief 矢印キーの入力を direction 型として返します.
+direction input_arrow_key() {
+    int firstChar = _getch();
+
+    if (firstChar == 0xe0) {
+        // 矢印キーのとき
+        int secondChar = _getch();
+
+        if (secondChar == 0x48) {
+            return UP;
+        } else if (secondChar == 0x50) {
+            return DOWN;
+        } else if (secondChar == 0x4b) {
+            return LEFT;
+        } else if (secondChar == 0x4d) {
+            return RIGHT;
+        }
+
+    } else if (firstChar == 13) {
+        // エンターキーのとき
+        return ENTER;
+    } else if (firstChar == 'q') {
+        return QUIT;
+    }
+
+    return INVALID;
+}
+
+/// @brief 左上から見て一番最初にある合法手の座標を返します
+struct vector first_legal_coord(int board_size, int board[board_size + 2][board_size + 2]) {
+    struct vector coord;
+    coord.x = 0;
+    coord.y = 0;
+    for (int i = 1; i < board_size; i++) {
+        for (int j = 1; j < board_size; j++) {
+            if (board[i][j] == LEGAL) {
+                coord.x = i;
+                coord.y = j;
+                break;
+            }
+        }
+        if (coord.x != 0 || coord.y != 0) {
+            break;
+        }
+    }
+    return coord;
+}
+
+struct vector input_coord(int board_size, int board[board_size + 2][board_size + 2]) {
+    struct vector tmp_legal = first_legal_coord(board_size, board);
+    struct vector cursor = tmp_legal;
+    board[cursor.x][cursor.y] = CURSOR;
+    direction dire = INVALID;
+
+    do {
+        dire = input_arrow_key();
+
+    } while (dire != ENTER);
+
+    return cursor;
+}
+
+/// @brief オセロの枠線を表示する
+void print_frame(char *frame) {
+    print_color(CH_BLACK);
+
+    printf("%s", frame);
+
+    print_color(CH_WHITE);
+}
+
+void print_left_padding() {
+    printf("   ");
+}
+
+/// @brief 盤面の枠の行間の横線を出力する
+/// @param type BETWEEN, TOP, BOTTOM のいずれか
+void print_board_divider(int board_size, int type) {
+    char left[10];
+    char right[13];
+    char between[7];
+
+    switch (type) {
+        case BETWEEN:
+            strcpy(left, "┣━━");
+            strcpy(right, "━╋━━");
+            strcpy(between, "━┫");
+            break;
+        case TOP:
+            strcpy(left, "┏━━");
+            strcpy(right, "━┳━━");
+            strcpy(between, "━┓");
+            break;
+        case BOTTOM:
+            strcpy(left, "┗━━");
+            strcpy(right, "━┻━━");
+            strcpy(between, "━┛");
+            break;
+    }
+
+    print_left_padding();
+    print_color(BK_GREEN);
+    print_frame(left);
+    for (int j = 0; j < board_size - 1; j++) {
+        print_frame(right);
+    }
+    print_frame(between);
+    print_color(BK_BLACK);
+    printf("\n");
+}
+
+/// @brief 盤面を出力
+void print_board(int board_size, int board[board_size + 2][board_size + 2]) {
+    print_left_padding();
+    printf(" ");
+    for (int i = 0; i < board_size; i++) {
+        printf(" %c  ", 'A' + i);
+    }
+    printf("\n");
+    print_board_divider(board_size, TOP);
+
+    // i = 1 からなのは番兵を無視するため
+    for (int i = 1; i < board_size + 1; i++) {
+        // 数字右詰め出力
+        printf("%2d ", i);
+        print_color(BK_GREEN);
+        print_frame("┃");
+
+        for (int j = 1; j < board_size + 1; j++) {
+            int stone = board[i][j];
+
+            switch (stone) {
+                case EMPTY:
+                    printf("   ");
+                    break;
+                case FIRST:
+                    print_color(CH_BLACK);
+                    printf(" @ ");
+                    print_color(CH_WHITE);
+                    break;
+                case SECOND:
+                    printf(" 0 ");
+                    break;
+                case LEGAL:
+                    print_color(CH_YELLOW);
+                    printf(" - ");
+                    print_color(CH_WHITE);
+                    break;
+            }
+
+            // 枠線
+            if (j < board_size) {
+                print_frame("┃");
+            }
+        }
+
+        print_frame("┃");
+        print_color(BK_BLACK);
+        printf("\n");
+
+        if (i < board_size) {
+            print_board_divider(board_size, BETWEEN);
+        }
+    }
+
+    print_board_divider(board_size, BOTTOM);
+    printf("\n");
+}
+// endregion
+
+// region Board
+/// @brief 盤面を初期化
+void init_board(int board_size, int board[board_size + 2][board_size + 2]) {
+    int array_size = board_size + 2;
+    int center = array_size / 2 - 1;
+
+    for (int i = 0; i < array_size; i++) {
+
+        for (int j = 0; j < array_size; j++) {
+
+            if (i == 0 || i == array_size || j == 0 || j == array_size) {
+                // 番兵
+                board[i][j] = OUTSIDE;
+
+            } else if (i == j && (i - center == 0 || i - center == 1)) {
+                // 後手
+                board[i][j] = SECOND;
+
+            } else if (abs(i - j) == 1 && min(i, j) == center) {
+                // 先手
+                board[i][j] = FIRST;
+
+            } else {
+                board[i][j] = EMPTY;
+            }
+
+        }
+
+    }
+}
+
+/// @brief (x, y) の石についての合法手を board に設定する
+void partial_legal_board(int board_size, int board[board_size + 2][board_size + 2], int current_turn, int x, int y) {
+    int next_turn = current_turn == FIRST ? SECOND : FIRST;
+
+    // 8方向について探索
+    for (int i = 0; i < 9; i++) {
+        int x_diff = (i - 1) % 3 - 1;
+        int y_diff = i / 3 - 1;
+
+        if (x_diff == 0 && y_diff == 0) {
+            continue;
+        }
+
+        int _x = x;
+        int _y = y;
+        /// その方向に一つでも相手の石があるか
+        bool continuous = false;
+
+        for (int j = 0; j < board_size; j++) {
+            _x += x_diff;
+            _y += y_diff;
+
+            int stone = board[_x][_y];
+
+            if (stone == OUTSIDE || stone == current_turn) {
+                break;
+            } else if (stone == next_turn) {
+                continuous = true;
+                continue;
+            } else if (stone == EMPTY) {
+                if (continuous == true) {
+                    board[_x][_y] = LEGAL;
+                }
+
+                break;
+            }
+        }
+    }
+}
+
+/// @brief board に合法手を設定します
+/// @param current_turn FIRST or SECOND
+void legal_board(int board_size, int board[board_size + 2][board_size + 2], int current_turn) {
+    for (int i = 0; i < board_size + 2; i++) {
+        for (int j = 0; j < board_size + 2; j++) {
+            // 自分の石のとき、判定を行う
+            if (board[i][j] == current_turn) {
+                partial_legal_board(board_size, board, current_turn, i, j);
+            }
+
+        }
+    }
+}
+// endregion
+
+void game() {
+    int size = input_size();
+
+    int board[size + 2][size + 2];
+    int current_turn = FIRST;
+
+    init_board(size, board);
+    legal_board(size, board, current_turn);
+
+    print_board(size, board);
+}
+
+int main() {
+    game();
 }

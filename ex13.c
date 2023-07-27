@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include "stdio.h"
 
 #define CHAR_LENGTH 20
@@ -31,14 +32,34 @@ int str_cmp(const char a[], const char b[]) {
     }
 }
 
-int str_chomp(const char text[], char words[CHAR_LENGTH][MAX_WORDS]) {
+int str_chomp(const char text[], char words[MAX_WORDS][CHAR_LENGTH]) {
+    int word_count = 0;
+    int char_index = 0;
+    bool before_empty = true;
 
+    for (int i = 0; text[i] != '\0'; i++) {
+        if ((text[i] >= 'a' && text[i] <= 'z') || (text[i] >= 'A' && text[i] <= 'Z')) {
+            words[word_count][char_index] = text[i];
+            char_index++;
+            before_empty = false;
+
+        } else if (!before_empty) {
+            words[word_count][char_index] = '\0';
+            word_count++;
+            char_index = 0;
+            before_empty = true;
+
+        }
+    }
 }
 
 int main() {
-    int size = 5;
+    int size = 10;
     char s[size];
+    char words[MAX_WORDS][CHAR_LENGTH];
 
-    fgets(s, size, stdin);
-    printf("%s", s);
+//    fgets(s, size, stdin);
+//    printf("%s", s);
+    str_chomp("Hello, apple grape orange.", words);
+    printf("?");
 }
