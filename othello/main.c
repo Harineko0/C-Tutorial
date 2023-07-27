@@ -4,14 +4,13 @@
 #include <string.h>
 #include <conio.h>
 #include "util.h"
+#include "vector.h"
 
 // Board Element
 #define EMPTY 0
-#define FIRST 1 // 先手
-#define SECOND 2 // 後手
-#define LEGAL 3
-#define CURSOR 4
-#define OUTSIDE -1
+#define FIRST -1 // 先手
+#define SECOND -2 // 後手
+#define OUTSIDE -3
 // ASNI Color Code
 #define CH_BLACK 30
 #define CH_YELLOW 33
@@ -31,17 +30,34 @@
 #define INVALID 0
 #define QUIT 6
 
-struct vector {
-    int x;
-    int y;
-};
 /// UP, DOWN, LEFT, RIGHT, ENTER, INVALID, QUIT
 typedef int direction;
+
+/// @brief オセロの board で合法手かどうか
+bool is_legal(int stone) {
+    return stone > 0;
+}
+
+/// @brief オセロの board でカーソルかどうか
+bool is_cursor(int stone) {
+    return (0b1000000000 & stone) != 0;
+}
+
+void set_cursor(int board_size, int board[board_size + 2][board_size + 2], struct vector coord) {
+    if (board[coord.x][coord.y] <= 0) return;
+    board[coord.x][coord.y] |= 0b1000000000;
+}
 
 // region IO
 /// @brief 出力のカーソルを上に line 行だけずらす
 void print_overwrite(int line) {
-    printf("\033[%dF", line);
+//    printf("\033[%dF", line);
+}
+
+void print_line(int line) {
+    for (int i = 0; i < line; i++) {
+        printf("\n");
+    }
 }
 
 /// @brief ANSIのカラーコードを出力する
@@ -101,40 +117,6 @@ direction input_arrow_key() {
     return INVALID;
 }
 
-/// @brief 左上から見て一番最初にある合法手の座標を返します
-struct vector first_legal_coord(int board_size, int board[board_size + 2][board_size + 2]) {
-    struct vector coord;
-    coord.x = 0;
-    coord.y = 0;
-    for (int i = 1; i < board_size; i++) {
-        for (int j = 1; j < board_size; j++) {
-            if (board[i][j] == LEGAL) {
-                coord.x = i;
-                coord.y = j;
-                break;
-            }
-        }
-        if (coord.x != 0 || coord.y != 0) {
-            break;
-        }
-    }
-    return coord;
-}
-
-struct vector input_coord(int board_size, int board[board_size + 2][board_size + 2]) {
-    struct vector tmp_legal = first_legal_coord(board_size, board);
-    struct vector cursor = tmp_legal;
-    board[cursor.x][cursor.y] = CURSOR;
-    direction dire = INVALID;
-
-    do {
-        dire = input_arrow_key();
-
-    } while (dire != ENTER);
-
-    return cursor;
-}
-
 /// @brief オセロの枠線を表示する
 void print_frame(char *frame) {
     print_color(CH_BLACK);
@@ -186,6 +168,7 @@ void print_board_divider(int board_size, int type) {
 
 /// @brief 盤面を出力
 void print_board(int board_size, int board[board_size + 2][board_size + 2]) {
+    print_overwrite(19);
     print_left_padding();
     printf(" ");
     for (int i = 0; i < board_size; i++) {
@@ -202,7 +185,7 @@ void print_board(int board_size, int board[board_size + 2][board_size + 2]) {
         print_frame("┃");
 
         for (int j = 1; j < board_size + 1; j++) {
-            int stone = board[i][j];
+            int stone = board[j][i];
 
             switch (stone) {
                 case EMPTY:
@@ -216,11 +199,16 @@ void print_board(int board_size, int board[board_size + 2][board_size + 2]) {
                 case SECOND:
                     printf(" 0 ");
                     break;
-                case LEGAL:
-                    print_color(CH_YELLOW);
-                    printf(" - ");
-                    print_color(CH_WHITE);
-                    break;
+                default:
+                    if (is_cursor(stone)) {
+                        print_color(CH_YELLOW);
+                        printf(" + ");
+                        print_color(CH_WHITE);
+                    } else if (is_legal(stone)) {
+                        print_color(CH_YELLOW);
+                        printf(" - ");
+                        print_color(CH_WHITE);
+                    }
             }
 
             // 枠線
@@ -241,9 +229,134 @@ void print_board(int board_size, int board[board_size + 2][board_size + 2]) {
     print_board_divider(board_size, BOTTOM);
     printf("\n");
 }
+
+void print_board_debug(int board_size, int board[board_size + 2][board_size + 2]) {
+    for (int i = 0; i < board_size + 2; i++) {
+        for (int j = 0; j < board_size + 2; j++) {
+            printf("%5d ", board[j][i]);
+        }
+        printf("\n");
+    }
+    printf("----------------------------------------\n");
+}
+
+/// @brief 左上から見て一番最初にある合法手の座標を返します
+struct vector first_legal_coord(int board_size, int board[board_size + 2][board_size + 2]) {
+    struct vector coord;
+    coord.x = 0;
+    coord.y = 0;
+    for (int i = 1; i < board_size; i++) {
+        for (int j = 1; j < board_size; j++) {
+            if (is_legal(board[j][i])) {
+                coord.x = j;
+                coord.y = i;
+                break;
+            }
+        }
+        if (coord.x != 0 || coord.y != 0) {
+            break;
+        }
+    }
+    return coord;
+}
+
+/// @brief 水平方向で cursor に最も近い合法手の座標を返す. 合法手がない場合, 入力の cursor をそのまま返す.
+struct vector horizontal_legal(int board_size, int board[board_size + 2][board_size + 2], struct vector cursor) {
+    if (is_legal(board[cursor.x][cursor.y])) {
+        return cursor;
+    }
+
+    struct vector leftCursor = cursor, rightCursor = cursor;
+
+    for (int i = 0; i < board_size; i++) {
+        leftCursor.x--;
+        rightCursor.x++;
+
+        if (leftCursor.x > 0 && is_legal(board[leftCursor.x][leftCursor.y])) {
+            return leftCursor;
+
+        } else if (rightCursor.x < board_size + 2 && is_legal(board[rightCursor.x][rightCursor.y])) {
+            return rightCursor;
+
+        }
+    }
+
+    return cursor;
+}
+
+/// @brief search_diff の方向にある合法手の座標を返します. search_diff が上下の場合, その方向にも探索します.
+struct vector next_cursor(int board_size, int board[board_size + 2][board_size + 2], struct vector cursor, struct vector search_diff) {
+    struct vector new_cursor = cursor;
+
+    for (int i = 0; i < board_size; i++) {
+        new_cursor = add_vector(new_cursor, search_diff);
+
+        if (search_diff.y != 0) {
+            new_cursor = horizontal_legal(board_size, board, new_cursor);
+        }
+
+        int stone = board[new_cursor.x][new_cursor.y];
+
+        if (is_legal(stone)) {
+            return new_cursor;
+
+        } else if (stone == OUTSIDE) {
+            break;
+        }
+    }
+
+    return cursor;
+}
+
+struct vector input_coord(int board_size, int board[board_size + 2][board_size + 2]) {
+    struct vector tmp_legal = first_legal_coord(board_size, board);
+    struct vector cursor = tmp_legal;
+    struct vector old_cursor;
+    direction dire = INVALID;
+
+    do {
+        int original = board[cursor.x][cursor.y];
+        set_cursor(board_size, board, cursor);
+
+        print_board(board_size, board);
+        dire = input_arrow_key();
+        struct vector search_diff;
+        search_diff.x = 0, search_diff.y = 0;
+
+        switch (dire) {
+            case UP:
+                search_diff.y = -1;
+                break;
+            case DOWN:
+                search_diff.y = 1;
+                break;
+            case LEFT:
+                search_diff.x = -1;
+                break;
+            case RIGHT:
+                search_diff.x = 1;
+                break;
+            case QUIT:
+                exit(0);
+                break;
+        }
+
+        old_cursor = cursor;
+        cursor = next_cursor(board_size, board, cursor, search_diff);
+
+        board[old_cursor.x][old_cursor.y] = original;
+
+    } while (dire != ENTER);
+
+    return cursor;
+}
 // endregion
 
 // region Board
+int get_next_turn(int current_turn) {
+    return current_turn == FIRST ? SECOND : FIRST;
+}
+
 /// @brief 盤面を初期化
 void init_board(int board_size, int board[board_size + 2][board_size + 2]) {
     int array_size = board_size + 2;
@@ -253,20 +366,20 @@ void init_board(int board_size, int board[board_size + 2][board_size + 2]) {
 
         for (int j = 0; j < array_size; j++) {
 
-            if (i == 0 || i == array_size || j == 0 || j == array_size) {
+            if (i == 0 || i == array_size - 1 || j == 0 || j == array_size - 1) {
                 // 番兵
-                board[i][j] = OUTSIDE;
+                board[j][i] = OUTSIDE;
 
             } else if (i == j && (i - center == 0 || i - center == 1)) {
                 // 後手
-                board[i][j] = SECOND;
+                board[j][i] = SECOND;
 
             } else if (abs(i - j) == 1 && min(i, j) == center) {
                 // 先手
-                board[i][j] = FIRST;
+                board[j][i] = FIRST;
 
             } else {
-                board[i][j] = EMPTY;
+                board[j][i] = EMPTY;
             }
 
         }
@@ -274,16 +387,26 @@ void init_board(int board_size, int board[board_size + 2][board_size + 2]) {
     }
 }
 
+/// @brief 入力された数値 (0~8) から, xy座標における方向(縦横斜め)を返します.
+struct vector vec_direction(int n) {
+    struct vector vec;
+    vec.x = n % 3 - 1;
+    vec.y = n / 3 - 1;
+    return vec;
+}
+
 /// @brief (x, y) の石についての合法手を board に設定する
 void partial_legal_board(int board_size, int board[board_size + 2][board_size + 2], int current_turn, int x, int y) {
-    int next_turn = current_turn == FIRST ? SECOND : FIRST;
+    int next_turn = get_next_turn(current_turn);
+    printf("partial_legal_board (x, y) = (%d, %d)\n", x, y);
+//    print_board_debug(board_size, board);
 
     // 8方向について探索
     for (int i = 0; i < 9; i++) {
-        int x_diff = (i - 1) % 3 - 1;
-        int y_diff = i / 3 - 1;
+        struct vector diff = vec_direction(i);
+        printf(" diff (%d, %d): \n", diff.x, diff.y);
 
-        if (x_diff == 0 && y_diff == 0) {
+        if (diff.x == 0 && diff.y == 0) {
             continue;
         }
 
@@ -293,19 +416,22 @@ void partial_legal_board(int board_size, int board[board_size + 2][board_size + 
         bool continuous = false;
 
         for (int j = 0; j < board_size; j++) {
-            _x += x_diff;
-            _y += y_diff;
+            _x += diff.x;
+            _y += diff.y;
 
             int stone = board[_x][_y];
+            printf("  stone(%d, %d): %d\n", _x, _y, stone);
 
             if (stone == OUTSIDE || stone == current_turn) {
                 break;
             } else if (stone == next_turn) {
                 continuous = true;
                 continue;
-            } else if (stone == EMPTY) {
+            } else if (stone == EMPTY || is_legal(stone)) {
                 if (continuous == true) {
-                    board[_x][_y] = LEGAL;
+                    int legal_stone = 1 << i;
+                    board[_x][_y] |= legal_stone;
+                    printf("   legal: (%d, %d)\n", _x, _y);
                 }
 
                 break;
@@ -316,12 +442,57 @@ void partial_legal_board(int board_size, int board[board_size + 2][board_size + 
 
 /// @brief board に合法手を設定します
 /// @param current_turn FIRST or SECOND
-void legal_board(int board_size, int board[board_size + 2][board_size + 2], int current_turn) {
+void legal_board(int board_size, int board[board_size + 2][board_size + 2],
+                 int current_turn) {
     for (int i = 0; i < board_size + 2; i++) {
         for (int j = 0; j < board_size + 2; j++) {
-            // 自分の石のとき、判定を行う
-            if (board[i][j] == current_turn) {
-                partial_legal_board(board_size, board, current_turn, i, j);
+            // 自分の石のとき, 判定を行う
+            if (board[j][i] == current_turn) {
+                partial_legal_board(board_size, board, current_turn, j, i);
+            }
+
+        }
+    }
+}
+
+void remove_legal_board(int board_size, int board[board_size + 2][board_size + 2]) {
+    for (int i = 0; i < board_size + 2; i++) {
+        for (int j = 0; j < board_size + 2; j++) {
+            int stone = board[j][i];
+            if (is_legal(stone)) {
+                board[j][i] = EMPTY;
+            }
+
+        }
+    }
+}
+
+void place_stone(int board_size, int board[board_size + 2][board_size + 2],
+                 struct vector put_coord, int current_turn) {
+    int put = board[put_coord.x][put_coord.y];
+    board[put_coord.x][put_coord.y] = current_turn;
+    int next_turn = get_next_turn(current_turn);
+
+    if (!is_legal(put)) return;
+
+    for (int i = 0; i < 9; i++) {
+        /// 合法手ビット列と合致したら
+        if ((1 << i) & put) {
+            struct vector diff = vec_direction(i);
+            diff = scala_vector(diff, -1);
+            struct vector reverse_coord = put_coord;
+
+            for (int j = 0; j < board_size; j++) {
+                reverse_coord = add_vector(reverse_coord, diff);
+                int stone = board[reverse_coord.x][reverse_coord.y];
+
+                if (stone == next_turn) {
+                    board[reverse_coord.x][reverse_coord.y] = current_turn;
+                } else if (stone == current_turn) {
+                    break;
+                } else if (stone == OUTSIDE) {
+                    break;
+                }
             }
 
         }
@@ -331,12 +502,29 @@ void legal_board(int board_size, int board[board_size + 2][board_size + 2], int 
 
 void game() {
     int size = input_size();
+//    int size = 8;
+//    print_line(19);
 
     int board[size + 2][size + 2];
     int current_turn = FIRST;
 
     init_board(size, board);
-    legal_board(size, board, current_turn);
+
+//    struct vector inputs[] = {{6, 5}, {5, 5}, {1, 1}};
+//    int i = 0;
+
+    do {
+        legal_board(size, board, current_turn);
+        struct vector put_coord = input_coord(size, board);
+
+//        struct vector put_coord = inputs[i];
+//        i++;
+
+        place_stone(size, board, put_coord, current_turn);
+        remove_legal_board(size, board);
+//        print_board_debug(size, board);
+        current_turn = get_next_turn(current_turn);
+    } while(1);
 
     print_board(size, board);
 }
