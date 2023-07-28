@@ -11,6 +11,7 @@
 #define FIRST -1 // 先手
 #define SECOND -2 // 後手
 #define OUTSIDE -3
+#define LEGAL -4
 // ASNI Color Code
 #define CH_BLACK 30
 #define CH_YELLOW 33
@@ -29,6 +30,12 @@
 #define ENTER 5
 #define INVALID 0
 #define QUIT 6
+// board_status
+#define CONTINUE 0
+#define PASS 1
+#define END 2
+// AI
+#define INFINITY 2147483648
 
 /// UP, DOWN, LEFT, RIGHT, ENTER, INVALID, QUIT
 typedef int direction;
@@ -245,15 +252,15 @@ struct vector first_legal_coord(int board_size, int board[board_size + 2][board_
     struct vector coord;
     coord.x = 0;
     coord.y = 0;
-    for (int i = 1; i < board_size; i++) {
-        for (int j = 1; j < board_size; j++) {
+    for (int i = 1; i < board_size + 1; i++) {
+        for (int j = 1; j < board_size + 1; j++) {
             if (is_legal(board[j][i])) {
                 coord.x = j;
                 coord.y = i;
                 break;
             }
         }
-        if (coord.x != 0 || coord.y != 0) {
+        if (coord.x != 0 && coord.y != 0) {
             break;
         }
     }
@@ -398,13 +405,10 @@ struct vector vec_direction(int n) {
 /// @brief (x, y) の石についての合法手を board に設定する
 void partial_legal_board(int board_size, int board[board_size + 2][board_size + 2], int current_turn, int x, int y) {
     int next_turn = get_next_turn(current_turn);
-    printf("partial_legal_board (x, y) = (%d, %d)\n", x, y);
-//    print_board_debug(board_size, board);
 
     // 8方向について探索
     for (int i = 0; i < 9; i++) {
         struct vector diff = vec_direction(i);
-        printf(" diff (%d, %d): \n", diff.x, diff.y);
 
         if (diff.x == 0 && diff.y == 0) {
             continue;
@@ -420,7 +424,6 @@ void partial_legal_board(int board_size, int board[board_size + 2][board_size + 
             _y += diff.y;
 
             int stone = board[_x][_y];
-            printf("  stone(%d, %d): %d\n", _x, _y, stone);
 
             if (stone == OUTSIDE || stone == current_turn) {
                 break;
@@ -431,7 +434,6 @@ void partial_legal_board(int board_size, int board[board_size + 2][board_size + 
                 if (continuous == true) {
                     int legal_stone = 1 << i;
                     board[_x][_y] |= legal_stone;
-                    printf("   legal: (%d, %d)\n", _x, _y);
                 }
 
                 break;
@@ -440,27 +442,29 @@ void partial_legal_board(int board_size, int board[board_size + 2][board_size + 
     }
 }
 
-/// @brief board に合法手を設定します
-/// @param current_turn FIRST or SECOND
-void legal_board(int board_size, int board[board_size + 2][board_size + 2],
-                 int current_turn) {
-    for (int i = 0; i < board_size + 2; i++) {
-        for (int j = 0; j < board_size + 2; j++) {
-            // 自分の石のとき, 判定を行う
-            if (board[j][i] == current_turn) {
-                partial_legal_board(board_size, board, current_turn, j, i);
-            }
-
-        }
-    }
-}
-
+/// @brief board の合法手を削除します
 void remove_legal_board(int board_size, int board[board_size + 2][board_size + 2]) {
     for (int i = 0; i < board_size + 2; i++) {
         for (int j = 0; j < board_size + 2; j++) {
             int stone = board[j][i];
             if (is_legal(stone)) {
                 board[j][i] = EMPTY;
+            }
+
+        }
+    }
+}
+
+/// @brief board に合法手を設定します
+/// @param current_turn FIRST or SECOND
+void legal_board(int board_size, int board[board_size + 2][board_size + 2],
+                 int current_turn) {
+    remove_legal_board(board_size, board);
+    for (int i = 0; i < board_size + 2; i++) {
+        for (int j = 0; j < board_size + 2; j++) {
+            // 自分の石のとき, 判定を行う
+            if (board[j][i] == current_turn) {
+                partial_legal_board(board_size, board, current_turn, j, i);
             }
 
         }
@@ -498,32 +502,182 @@ void place_stone(int board_size, int board[board_size + 2][board_size + 2],
         }
     }
 }
+
+/// @brief 合法手の数を返す
+int count_stone(int size, int board[size + 2][size + 2], int type) {
+    int count = 0;
+
+    for (int i = 0; i < size + 2; i++) {
+        for (int j = 0; j < size + 2; j++) {
+            int stone = board[j][i];
+
+            if (type == LEGAL && is_legal(stone)) {
+                count++;
+            } else if (type == stone) {
+                count++;
+            }
+        }
+    }
+
+    return count;
+}
+
+/// @brief 盤面が パス 終了 継続 のいづれかかを返す
+int board_status(int size, int board[size + 2][size + 2], int current_turn) {
+    int next_turn = get_next_turn(current_turn);
+
+    legal_board(size, board, current_turn);
+    int current_legal = count_stone(size, board, LEGAL);
+    legal_board(size, board, next_turn);
+    int next_legal = count_stone(size, board, LEGAL);
+
+    remove_legal_board(size, board);
+
+    if (current_legal == 0 && next_legal != 0) {
+        return PASS;
+    } else if (current_legal == 0 && next_legal == 0) {
+        return END;
+    } else {
+        return CONTINUE;
+    }
+}
+
+void copy_board(int size, int from[size + 2][size + 2], int to[size + 2][size + 2]) {
+    for (int i = 0; i < size + 2; i++) {
+        for (int j = 0; j < size + 2; j++) {
+            to[j][i] = from[j][i];
+        }
+    }
+}
+// endregion
+
+// region AI
+/// @brief あるマスのスコアを返す
+/// @param coord 盤面の大きさの半分まで
+int slot_score(struct vector coord) {
+    // TODO: 評価関数を調整
+    return -(coord.x + coord.y);
+}
+
+int board_score(int size, int board[size + 2][size + 2], int current_turn) {
+    int score = 0;
+    int next_turn = get_next_turn(current_turn);
+
+    for (int i = 1; i < size + 1; i++) {
+        for (int j = 1; j < size + 1; j++) {
+
+            int stone = board[j][i];
+            struct vector coord = {j, i};
+
+            if (stone == current_turn) {
+                score += slot_score(coord);
+            } else if (stone == next_turn) {
+                score += -slot_score(coord);
+            }
+        }
+    }
+}
+
+/// @brief mini-max法で盤面のスコアを求める
+int mini_max(int size, int board[size + 2][size + 2], int depth, bool passed, int current_turn) {
+    if (depth == 0) {
+        return board_score(size, board, current_turn);
+    } else {
+        legal_board(size, board, current_turn);
+        int score = -INFINITY;
+
+        for (int i = 1; i < size + 1; i++) {
+            for (int j = 1; j < size + 1; j++) {
+                int stone = board[j][i];
+
+                if (is_legal(stone)) {
+                    int new_board[size + 2][size + 2];
+                    copy_board(size, board, new_board);
+                    struct vector coord = {j, i};
+                    place_stone(size, board, coord, current_turn);
+
+                    int next_score = -mini_max(size, board, depth - 1, false, current_turn);
+                    score = max(score, next_score);
+                }
+            }
+        }
+
+        // 変化していなかったら
+        if (score == -INFINITY) {
+            if (passed) {
+                return board_score(size, board, current_turn);
+            } else {
+                int next_turn = get_next_turn(current_turn);
+                return -mini_max(size, board, depth - 1,true, next_turn);
+            }
+        }
+
+        return score;
+    }
+}
+
+/// @brief 最もいい手を返す
+struct vector search_best_stone(int size, int board[size + 2][size + 2], int depth, int current_turn) {
+    legal_board(size, board, current_turn);
+    int max_score = -INFINITY;
+    struct vector best_stone;
+
+    for (int i = 0; i < size + 1; i++) {
+        for (int j = 0; j < size + 1; j++) {
+
+            int stone = board[j][i];
+
+            if (is_legal(stone)) {
+                int score = -mini_max(size, board, depth - 1, false, current_turn);
+
+                if (max_score < score) {
+                    max_score = score;
+                    best_stone = {j, i};
+
+                }
+            }
+
+        }
+    }
+
+    return best_stone;
+}
 // endregion
 
 void game() {
     int size = input_size();
-//    int size = 8;
-//    print_line(19);
 
     int board[size + 2][size + 2];
     int current_turn = FIRST;
 
     init_board(size, board);
-
-//    struct vector inputs[] = {{6, 5}, {5, 5}, {1, 1}};
-//    int i = 0;
+    print_line(19);
 
     do {
-        legal_board(size, board, current_turn);
-        struct vector put_coord = input_coord(size, board);
-
-//        struct vector put_coord = inputs[i];
-//        i++;
-
-        place_stone(size, board, put_coord, current_turn);
-        remove_legal_board(size, board);
+        int status = board_status(size, board, current_turn);
+        printf("STATUS: %d\n", status);
 //        print_board_debug(size, board);
-        current_turn = get_next_turn(current_turn);
+
+        if (status == CONTINUE) {
+            legal_board(size, board, current_turn);
+            struct vector put_coord;
+
+            if (current_turn == FIRST) {
+                put_coord = input_coord(size, board);
+            } else {
+                put_coord = search_best_stone(size, board, 1, current_turn);
+            }
+
+            place_stone(size, board, put_coord, current_turn);
+            remove_legal_board(size, board);
+            current_turn = get_next_turn(current_turn);
+
+        } else if (status == PASS) {
+            current_turn = get_next_turn(current_turn);
+
+        } else if (status == END) {
+            break;
+        }
     } while(1);
 
     print_board(size, board);
